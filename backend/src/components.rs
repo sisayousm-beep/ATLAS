@@ -18,6 +18,10 @@ pub struct Nation {
     /// Aggregate technology level index.
     pub technology: f64,
     pub government: Government,
+    /// Cumulative value of goods sold abroad (Phase 3 trade balance).
+    pub exports: f64,
+    /// Cumulative value of goods bought from abroad.
+    pub imports: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -29,9 +29,22 @@ export interface GoodPrice {
   base: number;
 }
 
+export interface CorporationView {
+  name: string;
+  /** Nation the firm is domiciled in (matches `NationView.id`). */
+  nationId: string;
+  /** Goods the firm produces. */
+  industries: string[];
+  /** Cash on hand; negative means the firm is bleeding. */
+  capital: number;
+  employees: number;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
   /** Global commodity prices (Phase 2). */
   prices: GoodPrice[];
+  /** Profit-seeking firms (Phase 3). */
+  corporations: CorporationView[];
 }

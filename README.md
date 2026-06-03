@@ -27,8 +27,8 @@ db/        PostgreSQL schema + migrations
 ## Roadmap (MVP phases)
 
 1. ~~Phase 1 — Region, Nation, POP, Resources~~ ✅
-2. **Phase 2** — Production, Market, Prices  ← *current*
-3. Phase 3 — Corporation AI, Trade
+2. ~~Phase 2 — Production, Market, Prices~~ ✅
+3. **Phase 3** — Corporation AI, Trade  ← *current*
 4. Phase 4 — Finance, Central Bank
 5. Phase 5 — Politics, Diplomacy
 6. Phase 6 — War
@@ -47,12 +47,31 @@ db/        PostgreSQL schema + migrations
 Emergent so far: Nordheim industrializes (cheap steel), Khoresan pumps oil,
 cars stay scarce and expensive.
 
+### Phase 3 — Corporations & Trade
+
+- **Corporations** — production now runs through profit-seeking firms (design §8).
+  Each firm specialises in one good, claims engineer labour in its home region,
+  buys its inputs and sells its output on the market, and keeps the margin as
+  capital. They answer to their books, not the state.
+- **Corporate AI** — monthly, a profitable firm pays corporate tax to its nation
+  and reinvests by hiring; a loss-making firm sheds workers. Firms grow and
+  shrink on their own.
+- **Trade / logistics** — goods rarely sit where the factory that needs them is,
+  so a logistics layer ships each good from surplus regions to deficit ones
+  (design §10), capped by infrastructure with a transport loss. Cross-border
+  flows land on each nation's trade balance.
+
+Emergent so far: oil-poor industrial regions import oil and ore and export iron
+and cars; Khoresan runs a steep import deficit feeding others' factories; car
+plants are the most profitable firms while overbuilt steelworks run at a loss and
+lay off staff.
+
 ## Run
 
 ```bash
 cd backend
-cargo run      # real-time sim: 1 second = 1 day, monthly reports incl. prices
-cargo test     # headless checks: world coherence + production/price movement
+cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade
+cargo test     # headless checks: world coherence + production/prices + firms/trade
 
 cd ../frontend
 npm install

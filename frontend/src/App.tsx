@@ -1,6 +1,9 @@
 import { sampleWorld } from "./data/sampleWorld";
 import { AtlasMap } from "./map/AtlasMap";
 
+const nationColor = (id: string) =>
+  sampleWorld.nations.find((n) => n.id === id)?.color ?? 0x888888;
+
 export default function App() {
   const totalPop = sampleWorld.regions.reduce((s, r) => s + r.population, 0);
 
@@ -8,7 +11,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Project Atlas</h1>
-        <span className="subtitle">Phase 2 · Production · Market · Prices</span>
+        <span className="subtitle">Phase 3 · Corporations · Trade · Market</span>
         <span className="stat">World population {totalPop.toLocaleString()}</span>
       </header>
 
@@ -41,6 +44,25 @@ export default function App() {
             </div>
           );
         })}
+
+        <h2 className="panel-title">Corporations</h2>
+        {sampleWorld.corporations.map((c) => (
+          <div key={c.name} className="corp-row">
+            <span
+              className="swatch"
+              style={{ background: `#${nationColor(c.nationId).toString(16).padStart(6, "0")}` }}
+              title={c.nationId}
+            />
+            <span className="corp-name">
+              {c.name}
+              <span className="corp-industries">{c.industries.join(", ")}</span>
+            </span>
+            <span className={`corp-capital ${c.capital < 0 ? "loss" : "profit"}`}>
+              {c.capital < 0 ? "−" : ""}
+              {Math.abs(c.capital).toLocaleString()}
+            </span>
+          </div>
+        ))}
       </aside>
     </div>
   );

@@ -3,6 +3,7 @@
 //! procedural generation of 200–500 regions comes later.
 
 use crate::components::*;
+use crate::corporation::Corporation;
 use crate::resources::{Deposits, Good, ResourceStock};
 use bevy_ecs::prelude::*;
 
@@ -14,8 +15,8 @@ struct PopSeed {
     ideology: Ideology,
 }
 
-/// Spawn a region owned by `nation`, plus its starting pops. Returns nothing —
-/// entities are committed straight into the world.
+/// Spawn a region owned by `nation`, plus its starting pops. Returns the region
+/// entity so corporations can be sited in it.
 fn spawn_region(
     world: &mut World,
     nation: Entity,
@@ -25,7 +26,7 @@ fn spawn_region(
     infrastructure: f64,
     deposits: &[(Good, f64)],
     pops: &[PopSeed],
-) {
+) -> Entity {
     let region = world
         .spawn((
             Region {
@@ -51,6 +52,8 @@ fn spawn_region(
             region,
         });
     }
+
+    region
 }
 
 fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f64) -> Entity {
@@ -64,8 +67,32 @@ fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f
             prestige: 0.0,
             technology: tech,
             government: gov,
+            exports: 0.0,
+            imports: 0.0,
         })
         .id()
+}
+
+/// Found a corporation: a firm in `region`, domiciled in `owner`, that produces
+/// the listed `industries` (design §8).
+fn corp(
+    world: &mut World,
+    name: &str,
+    owner: Entity,
+    region: Entity,
+    capital: f64,
+    employees: f64,
+    industries: &[Good],
+) {
+    world.spawn(Corporation {
+        name: name.to_string(),
+        owner,
+        region,
+        capital,
+        employees,
+        profit: 0.0,
+        industries: industries.to_vec(),
+    });
 }
 
 pub fn spawn_world(world: &mut World) {
@@ -74,7 +101,7 @@ pub fn spawn_world(world: &mut World) {
 
     // --- Aurelia: temperate breadbasket democracy, mines iron + coal ---
     let aurelia = nation(world, "Aurelia", 10_000.0, Government::Democracy, 1.0);
-    spawn_region(
+    let goldfields = spawn_region(
         world,
         aurelia,
         "Goldfields",
@@ -89,7 +116,7 @@ pub fn spawn_world(world: &mut World) {
             PopSeed { size: 15_000, profession: Merchant, wealth: 3.0, literacy: 0.9, ideology: Conservative },
         ],
     );
-    spawn_region(
+    let port_vesper = spawn_region(
         world,
         aurelia,
         "Port Vesper",
@@ -106,7 +133,7 @@ pub fn spawn_world(world: &mut World) {
 
     // --- Khoresan: arid autocracy, oil-rich but thin industry ---
     let khoresan = nation(world, "Khoresan", 6_000.0, Government::Autocracy, 0.8);
-    spawn_region(
+    let sandreach = spawn_region(
         world,
         khoresan,
         "Sandreach",
@@ -121,7 +148,7 @@ pub fn spawn_world(world: &mut World) {
             PopSeed { size: 10_000, profession: Soldier, wealth: 1.5, literacy: 0.6, ideology: Militarist },
         ],
     );
-    spawn_region(
+    let oasis_hold = spawn_region(
         world,
         khoresan,
         "Oasis Hold",
@@ -139,7 +166,7 @@ pub fn spawn_world(world: &mut World) {
 
     // --- Nordheim: cold continental monarchy, the industrial powerhouse ---
     let nordheim = nation(world, "Nordheim", 8_000.0, Government::Monarchy, 1.1);
-    spawn_region(
+    let frostmark = spawn_region(
         world,
         nordheim,
         "Frostmark",
@@ -154,4 +181,20 @@ pub fn spawn_world(world: &mut World) {
             PopSeed { size: 25_000, profession: Researcher, wealth: 3.5, literacy: 0.97, ideology: Progressive },
         ],
     );
+
+    // --- Corporations (design §8) ---
+    // Firms specialise in one good so their whole labour budget goes to it. The
+    // chain spans regions — foundries smelt iron, steelworks need that iron, car
+    // plants need steel and plastic — so the goods only meet because trade hauls
+    // them between regions (Phase 3's logistics at work).
+    use Good::*;
+    corp(world, "Goldfield Foundry", aurelia, goldfields, 4_000.0, 9_000.0, &[Iron]);
+    corp(world, "Aurelia Steel", aurelia, goldfields, 5_000.0, 9_000.0, &[Steel]);
+    corp(world, "Vesper Plastics", aurelia, port_vesper, 4_000.0, 8_000.0, &[Plastic]);
+    corp(world, "Aurelia Motors", aurelia, port_vesper, 6_000.0, 9_000.0, &[Car]);
+    corp(world, "Sandreach Petrochem", khoresan, sandreach, 3_000.0, 6_000.0, &[Plastic]);
+    corp(world, "Oasis Forge", khoresan, oasis_hold, 3_000.0, 5_000.0, &[Iron]);
+    corp(world, "Nordheim Foundry", nordheim, frostmark, 5_000.0, 10_000.0, &[Iron]);
+    corp(world, "Nordheim Steel", nordheim, frostmark, 6_000.0, 10_000.0, &[Steel]);
+    corp(world, "Nordheim Motors", nordheim, frostmark, 7_000.0, 9_000.0, &[Car]);
 }

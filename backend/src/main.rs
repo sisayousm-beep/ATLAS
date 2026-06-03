@@ -8,12 +8,14 @@
 #![allow(dead_code)]
 
 mod components;
+mod corporation;
 mod production;
 mod resources;
 mod systems;
 mod world_gen;
 
 use bevy_ecs::prelude::*;
+use corporation::TradeLedger;
 use production::Market;
 use resources::GameClock;
 use std::{thread, time::Duration};
@@ -22,11 +24,12 @@ fn main() {
     let mut world = World::new();
     world.insert_resource(GameClock::default());
     world.insert_resource(Market::default());
+    world.insert_resource(TradeLedger::default());
     world_gen::spawn_world(&mut world);
 
     let mut schedule = systems::build_schedule();
 
-    println!("Project Atlas — Phase 2 simulation (production · market · prices).");
+    println!("Project Atlas — Phase 3 simulation (corporations · trade · market).");
     println!("1 real second = 1 game day. Monthly reports below. Ctrl+C to stop.\n");
 
     loop {
@@ -38,6 +41,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use crate::components::Pop;
+    use crate::corporation::{Corporation, TradeLedger};
     use crate::production::{base_price, Market};
     use crate::resources::{GameClock, Good, ResourceStock};
     use bevy_ecs::prelude::*;
@@ -47,6 +51,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameClock::default());
         world.insert_resource(Market::default());
+        world.insert_resource(TradeLedger::default());
         crate::world_gen::spawn_world(&mut world);
         world
     }
@@ -112,6 +117,40 @@ mod tests {
             "oversupplied steel should price below base {}, got {}",
             base_price(Good::Steel),
             market.price(Good::Steel)
+        );
+    }
+
+    /// Phase 3: corporations run the chain as profit-seeking firms, and the
+    /// logistics layer moves goods between regions. After a quarter at least one
+    /// firm has built capital, and inter-region trade has actually happened.
+    #[test]
+    fn corporations_trade_and_profit() {
+        let mut world = new_world();
+        let mut schedule = crate::systems::build_schedule();
+
+        let start_capital: f64 = {
+            let mut q = world.query::<&Corporation>();
+            q.iter(&world).map(|c| c.capital).sum()
+        };
+
+        for _ in 0..120 {
+            schedule.run(&mut world);
+        }
+
+        // Some firm is making money: total corporate capital has grown.
+        let end_capital: f64 = {
+            let mut q = world.query::<&Corporation>();
+            q.iter(&world).map(|c| c.capital).sum()
+        };
+        assert!(
+            end_capital > start_capital,
+            "corporations should accumulate capital: {start_capital} -> {end_capital}"
+        );
+
+        // The logistics network moved goods between regions.
+        assert!(
+            world.resource::<TradeLedger>().value > 0.0,
+            "trade should move goods between regions"
         );
     }
 }

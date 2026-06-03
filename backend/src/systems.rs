@@ -4,6 +4,7 @@
 //! population change. Each system runs once per simulated day, in order.
 
 use crate::components::*;
+use crate::corporation::*;
 use crate::production::*;
 use crate::resources::*;
 use bevy_ecs::prelude::*;
@@ -19,10 +20,28 @@ const TAX_RATE: f64 = 0.01;
 const EXTRACT_RATE: f64 = 0.01;
 /// Labour budget a single engineer supplies to factories per day.
 const MANUFACTURE_RATE: f64 = 0.01;
-/// Cars a pop wants per person per day, scaled by wealth (luxury demand).
-const CAR_APPETITE: f64 = 1.0e-6;
+/// Cars a pop wants per person per day, scaled by wealth (luxury demand). Sized
+/// so consumer demand roughly meets what the car firms can build — the pull that
+/// keeps the value chain (and the firms feeding it) profitable.
+const CAR_APPETITE: f64 = 4.0e-5;
 /// How sharply prices react to a supply/demand imbalance each day.
 const PRICE_ELASTICITY: f64 = 0.08;
+/// Wage a corporation pays per unit of recipe labour it runs.
+const WAGE: f64 = 0.5;
+/// Share of a profitable firm's monthly profit taken as corporate tax.
+const CORP_TAX: f64 = 0.15;
+/// Engineers a profitable firm hires each month when it can afford to.
+const HIRE_STEP: f64 = 2_000.0;
+/// Capital a firm spends per engineer hired.
+const HIRE_COST: f64 = 0.5;
+/// Floor a firm shrinks its workforce toward when losing money.
+const MIN_EMPLOYEES: f64 = 500.0;
+/// Per-day share of a region's surplus the logistics network can ship.
+const TRADE_CAP: f64 = 0.5;
+/// Fraction of a shipment lost in transit (design §10 logistics friction).
+const TRANSPORT_LOSS: f64 = 0.02;
+/// Quantities below this are treated as zero in the trade clearing pass.
+const TRADE_EPS: f64 = 1.0e-9;
 
 /// Build the daily schedule: all Phase 1 systems in fixed causal order.
 pub fn build_schedule() -> Schedule {
@@ -32,11 +51,13 @@ pub fn build_schedule() -> Schedule {
             advance_clock,
             produce_food,
             extract_resources,
-            manufacture,
+            trade_goods,
+            corporate_production,
             consume_food,
             consume_goods,
             pop_growth,
             collect_taxes,
+            corporate_decisions,
             update_market,
             report,
         )
@@ -104,30 +125,140 @@ pub fn extract_resources(
     }
 }
 
-/// Engineers run factories: each region spends an engineer-labour budget on
-/// recipes in tier order, refining stocked inputs into higher goods. Inputs
-/// consumed are demand; outputs produced are supply.
-pub fn manufacture(
-    pops: Query<&Pop>,
-    mut regions: Query<(Entity, &mut ResourceStock)>,
-    mut market: ResMut<Market>,
+/// The logistics network (design §10): ship each good from regions holding more
+/// than their share toward regions holding less, so factories aren't starved by
+/// where the ore happens to sit. Throughput is capped per day and scaled by the
+/// infrastructure at both ends, and a slice of every shipment is lost in transit.
+/// Cross-border flows land on each nation's trade balance; everything is tallied
+/// in the [`TradeLedger`].
+pub fn trade_goods(
+    mut regions: Query<(Entity, &Region, &mut ResourceStock)>,
+    mut nations: Query<&mut Nation>,
+    market: Res<Market>,
+    mut ledger: ResMut<TradeLedger>,
 ) {
-    let mut labor: HashMap<Entity, f64> = HashMap::new();
-    for pop in &pops {
-        if pop.profession == Profession::Engineer {
-            *labor.entry(pop.region).or_default() += pop.size as f64;
-        }
+    /// A region's standing for one good during the clearing pass.
+    struct Node {
+        entity: Entity,
+        owner: Entity,
+        infra: f64,
+        orig: f64,
+        stock: f64,
     }
-    for (entity, mut stock) in &mut regions {
-        let mut budget = labor.get(&entity).copied().unwrap_or(0.0) * MANUFACTURE_RATE;
-        if budget <= 0.0 {
+
+    let mut trade_value: HashMap<Entity, (f64, f64)> = HashMap::new(); // (exports, imports)
+
+    for &good in TRADED {
+        let mut nodes: Vec<Node> = regions
+            .iter()
+            .map(|(entity, region, stock)| Node {
+                entity,
+                owner: region.owner,
+                infra: region.infrastructure,
+                orig: stock.get(good),
+                stock: stock.get(good),
+            })
+            .collect();
+
+        let total: f64 = nodes.iter().map(|n| n.stock).sum();
+        if nodes.len() < 2 || total <= 0.0 {
             continue;
         }
-        for recipe in RECIPES {
+        let target = total / nodes.len() as f64;
+
+        // Greedily match the biggest surplus with the biggest deficit. One pass
+        // settles at most one pair, so cap passes at the region count.
+        for _ in 0..nodes.len() {
+            let mut sell = None;
+            let mut buy = None;
+            let (mut best_sur, mut best_def) = (TRADE_EPS, TRADE_EPS);
+            for (i, n) in nodes.iter().enumerate() {
+                if n.stock - target > best_sur {
+                    best_sur = n.stock - target;
+                    sell = Some(i);
+                }
+                if target - n.stock > best_def {
+                    best_def = target - n.stock;
+                    buy = Some(i);
+                }
+            }
+            let (Some(s), Some(d)) = (sell, buy) else { break };
+
+            let cap = target * TRADE_CAP * nodes[s].infra.min(nodes[d].infra);
+            let qty = (nodes[s].stock - target)
+                .min(target - nodes[d].stock)
+                .min(cap);
+            if qty <= TRADE_EPS {
+                break;
+            }
+            let delivered = qty * (1.0 - TRANSPORT_LOSS);
+            nodes[s].stock -= qty;
+            nodes[d].stock += delivered;
+
+            let value = qty * market.price(good);
+            ledger.record(good, qty, value);
+            if nodes[s].owner != nodes[d].owner {
+                trade_value.entry(nodes[s].owner).or_default().0 += value;
+                trade_value.entry(nodes[d].owner).or_default().1 += value;
+            }
+        }
+
+        // Commit the net movement back into each region's warehouse.
+        for n in &nodes {
+            if let Ok((_, _, mut stock)) = regions.get_mut(n.entity) {
+                stock.add(good, n.stock - n.orig);
+            }
+        }
+    }
+
+    for (entity, (exports, imports)) in trade_value {
+        if let Ok(mut nation) = nations.get_mut(entity) {
+            nation.exports += exports;
+            nation.imports += imports;
+        }
+    }
+}
+
+/// Corporations run the factories (design §8). Each firm claims engineer labour
+/// in its home region (capped by the engineers actually there), then works its
+/// recipes in tier order: it buys the inputs and sells the output on the market,
+/// keeping the margin as capital. Inputs consumed are demand, output made is
+/// supply — the market mechanics are unchanged, the money is the new layer.
+pub fn corporate_production(
+    pops: Query<&Pop>,
+    mut corps: Query<&mut Corporation>,
+    mut regions: Query<&mut ResourceStock>,
+    mut market: ResMut<Market>,
+) {
+    // Engineers per region — the physical cap on how much industry can run.
+    let mut engineers: HashMap<Entity, f64> = HashMap::new();
+    for pop in &pops {
+        if pop.profession == Profession::Engineer {
+            *engineers.entry(pop.region).or_default() += pop.size as f64;
+        }
+    }
+
+    for mut corp in &mut corps {
+        let available = engineers.get(&corp.region).copied().unwrap_or(0.0);
+        let workers = corp.employees.min(available);
+        if workers <= 0.0 {
+            continue;
+        }
+        *engineers.get_mut(&corp.region).unwrap() -= workers;
+
+        let mut budget = workers * MANUFACTURE_RATE;
+        let industries = corp.industries.clone();
+        let Ok(mut stock) = regions.get_mut(corp.region) else {
+            continue;
+        };
+        for output in industries {
             if budget <= 0.0 {
                 break;
             }
-            // Units we can make: limited by labour budget and every input stock.
+            let Some(recipe) = recipe_for(output) else {
+                continue;
+            };
+            // Units: limited by labour budget and every input in stock.
             let mut units = budget / recipe.labor;
             for &(good, qty) in recipe.inputs {
                 units = units.min(stock.get(good) / qty);
@@ -135,13 +266,21 @@ pub fn manufacture(
             if units <= 0.0 {
                 continue;
             }
+            let mut input_cost = 0.0;
             for &(good, qty) in recipe.inputs {
                 let used = qty * units;
                 stock.take(good, used);
                 market.record_demand(good, used);
+                input_cost += used * market.price(good);
             }
-            stock.add(recipe.output, units);
-            market.record_supply(recipe.output, units);
+            let wages = units * recipe.labor * WAGE;
+            let revenue = units * market.price(output);
+            stock.add(output, units);
+            market.record_supply(output, units);
+
+            let margin = revenue - input_cost - wages;
+            corp.capital += margin;
+            corp.profit += margin;
             budget -= units * recipe.labor;
         }
     }
@@ -247,13 +386,56 @@ pub fn collect_taxes(
     }
 }
 
+/// The corporate "AI" (design §8), run monthly. A firm that turned a profit pays
+/// corporate tax to its nation and reinvests by hiring — up to the engineers its
+/// region can supply. A firm that lost money sheds workers. Profit is then reset
+/// for the new month. Firms answer to their books, not the state.
+pub fn corporate_decisions(
+    clock: Res<GameClock>,
+    pops: Query<&Pop>,
+    mut corps: Query<&mut Corporation>,
+    mut nations: Query<&mut Nation>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+    let mut engineers: HashMap<Entity, f64> = HashMap::new();
+    for pop in &pops {
+        if pop.profession == Profession::Engineer {
+            *engineers.entry(pop.region).or_default() += pop.size as f64;
+        }
+    }
+
+    for mut corp in &mut corps {
+        if corp.profit > 0.0 {
+            let tax = corp.profit * CORP_TAX;
+            if let Ok(mut nation) = nations.get_mut(corp.owner) {
+                nation.treasury += tax;
+            }
+            corp.capital -= tax;
+
+            // Reinvest in headcount if cash allows and engineers are free.
+            let room = engineers.get(&corp.region).copied().unwrap_or(0.0);
+            if corp.capital > HIRE_COST * HIRE_STEP && corp.employees + HIRE_STEP <= room {
+                corp.employees += HIRE_STEP;
+                corp.capital -= HIRE_COST * HIRE_STEP;
+            }
+        } else if corp.profit < 0.0 {
+            corp.employees = (corp.employees * 0.9).max(MIN_EMPLOYEES);
+        }
+        corp.profit = 0.0;
+    }
+}
+
 /// Print a monthly state-of-the-world report.
 pub fn report(
     clock: Res<GameClock>,
     market: Res<Market>,
+    ledger: Res<TradeLedger>,
     nations: Query<(Entity, &Nation)>,
     regions: Query<(&Region, &ResourceStock)>,
     pops: Query<&Pop>,
+    corps: Query<&Corporation>,
 ) {
     if !clock.is_month_start() {
         return;
@@ -291,8 +473,8 @@ pub fn report(
             _ => 0.0,
         };
         println!(
-            "  {:<12} pop {:>10}  treasury {:>12.0}  grain {:>10.0}  happiness {:>4.2}",
-            nation.name, pop, nation.treasury, g, happy
+            "  {:<12} pop {:>10}  treasury {:>12.0}  grain {:>10.0}  happiness {:>4.2}  trade +{:>9.0}/-{:>9.0}",
+            nation.name, pop, nation.treasury, g, happy, nation.exports, nation.imports
         );
     }
 
@@ -304,7 +486,21 @@ pub fn report(
     ] {
         print!("{:?} {:>6.1}  ", good, market.price(good));
     }
-    println!("\n");
+    println!();
+
+    // Corporations: who is making money, and at what scale (design §8).
+    for corp in &corps {
+        let nation = nations
+            .get(corp.owner)
+            .map(|(_, n)| n.name.as_str())
+            .unwrap_or("?");
+        println!(
+            "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
+            corp.name, nation, corp.capital, corp.employees, corp.profit
+        );
+    }
+    println!("  trade volume: steel {:>8.0}  car {:>8.0}  total value {:>12.0}\n",
+        ledger.volume(Good::Steel), ledger.volume(Good::Car), ledger.value);
 }
 
 fn terrain_food_mod(t: Terrain) -> f64 {

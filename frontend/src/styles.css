@@ -67,6 +67,7 @@ body {
   border-left: 1px solid #1c2340;
   background: #0b1021;
   font-size: 13px;
+  overflow-y: auto;
 }
 
 .legend-row {
@@ -146,4 +147,35 @@ body {
 }
 .trend-flat {
   color: #6b7398;
+}
+
+.corp-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.corp-name {
+  display: flex;
+  flex-direction: column;
+  color: #c5cbe6;
+  line-height: 1.25;
+}
+
+.corp-industries {
+  color: #8b93b8;
+  font-size: 11px;
+}
+
+.corp-capital {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.corp-capital.profit {
+  color: #5fb98a;
+}
+.corp-capital.loss {
+  color: #e0686d;
 }
