@@ -1,0 +1,11 @@
+[package]
+name = "atlas-sim"
+version = "0.1.0"
+edition = "2021"
+description = "Project Atlas — Phase 1 economic simulation core (bevy_ecs)"
+
+[dependencies]
+bevy_ecs = "0.16"
+
+[profile.dev]
+opt-level = 1

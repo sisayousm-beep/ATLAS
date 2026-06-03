@@ -1,0 +1,84 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #070a16;
+  color: #e6e9f5;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "stage  legend";
+  height: 100vh;
+}
+
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #1c2340;
+  background: #0b1021;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+}
+
+.subtitle {
+  color: #8b93b8;
+  font-size: 13px;
+}
+
+.stat {
+  margin-left: auto;
+  color: #b9c0e0;
+  font-size: 13px;
+}
+
+.stage-wrap {
+  grid-area: stage;
+  position: relative;
+  overflow: hidden;
+}
+
+.atlas-map {
+  position: absolute;
+  inset: 0;
+}
+
+.legend {
+  grid-area: legend;
+  padding: 16px;
+  border-left: 1px solid #1c2340;
+  background: #0b1021;
+  font-size: 13px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+}

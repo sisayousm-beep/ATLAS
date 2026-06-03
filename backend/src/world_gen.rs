@@ -1,0 +1,145 @@
+//! Builds the initial Phase 1 world: a handful of nations, each with a few
+//! regions populated by pops. Kept small and hand-authored for the MVP;
+//! procedural generation of 200–500 regions comes later.
+
+use crate::components::*;
+use crate::resources::ResourceStock;
+use bevy_ecs::prelude::*;
+
+struct PopSeed {
+    size: u32,
+    profession: Profession,
+    wealth: f64,
+    literacy: f64,
+    ideology: Ideology,
+}
+
+/// Spawn a region owned by `nation`, plus its starting pops. Returns nothing —
+/// entities are committed straight into the world.
+fn spawn_region(
+    world: &mut World,
+    nation: Entity,
+    name: &str,
+    terrain: Terrain,
+    climate: Climate,
+    infrastructure: f64,
+    pops: &[PopSeed],
+) {
+    let region = world
+        .spawn((
+            Region {
+                name: name.to_string(),
+                terrain,
+                climate,
+                infrastructure,
+                owner: nation,
+            },
+            ResourceStock::default(),
+        ))
+        .id();
+
+    for seed in pops {
+        world.spawn(Pop {
+            size: seed.size,
+            profession: seed.profession,
+            wealth: seed.wealth,
+            literacy: seed.literacy,
+            happiness: 0.6,
+            ideology: seed.ideology,
+            region,
+        });
+    }
+}
+
+fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f64) -> Entity {
+    world
+        .spawn(Nation {
+            name: name.to_string(),
+            treasury,
+            debt: 0.0,
+            inflation: 0.02,
+            stability: 0.7,
+            prestige: 0.0,
+            technology: tech,
+            government: gov,
+        })
+        .id()
+}
+
+pub fn spawn_world(world: &mut World) {
+    use Ideology::*;
+    use Profession::*;
+
+    // --- Aurelia: temperate breadbasket democracy ---
+    let aurelia = nation(world, "Aurelia", 10_000.0, Government::Democracy, 1.0);
+    spawn_region(
+        world,
+        aurelia,
+        "Goldfields",
+        Terrain::Plains,
+        Climate::Temperate,
+        0.7,
+        &[
+            PopSeed { size: 120_000, profession: Farmer, wealth: 1.5, literacy: 0.8, ideology: Liberal },
+            PopSeed { size: 60_000, profession: Laborer, wealth: 1.2, literacy: 0.7, ideology: Progressive },
+            PopSeed { size: 15_000, profession: Merchant, wealth: 3.0, literacy: 0.9, ideology: Conservative },
+        ],
+    );
+    spawn_region(
+        world,
+        aurelia,
+        "Port Vesper",
+        Terrain::Coast,
+        Climate::Temperate,
+        0.85,
+        &[
+            PopSeed { size: 40_000, profession: Farmer, wealth: 1.3, literacy: 0.85, ideology: Liberal },
+            PopSeed { size: 90_000, profession: Laborer, wealth: 1.4, literacy: 0.8, ideology: Progressive },
+            PopSeed { size: 20_000, profession: Engineer, wealth: 4.0, literacy: 0.95, ideology: Liberal },
+        ],
+    );
+
+    // --- Khoresan: arid autocracy, thinner farming ---
+    let khoresan = nation(world, "Khoresan", 6_000.0, Government::Autocracy, 0.8);
+    spawn_region(
+        world,
+        khoresan,
+        "Sandreach",
+        Terrain::Desert,
+        Climate::Arid,
+        0.4,
+        &[
+            PopSeed { size: 70_000, profession: Farmer, wealth: 0.8, literacy: 0.4, ideology: Conservative },
+            PopSeed { size: 50_000, profession: Laborer, wealth: 0.9, literacy: 0.5, ideology: Conservative },
+            PopSeed { size: 10_000, profession: Soldier, wealth: 1.5, literacy: 0.6, ideology: Militarist },
+        ],
+    );
+    spawn_region(
+        world,
+        khoresan,
+        "Oasis Hold",
+        Terrain::Hills,
+        Climate::Arid,
+        0.5,
+        &[
+            PopSeed { size: 55_000, profession: Farmer, wealth: 1.0, literacy: 0.5, ideology: Conservative },
+            PopSeed { size: 8_000, profession: Merchant, wealth: 2.5, literacy: 0.7, ideology: Liberal },
+        ],
+    );
+
+    // --- Nordheim: cold continental monarchy, industrial leaning ---
+    let nordheim = nation(world, "Nordheim", 8_000.0, Government::Monarchy, 1.1);
+    spawn_region(
+        world,
+        nordheim,
+        "Frostmark",
+        Terrain::Plains,
+        Climate::Continental,
+        0.75,
+        &[
+            PopSeed { size: 65_000, profession: Farmer, wealth: 1.4, literacy: 0.85, ideology: Conservative },
+            PopSeed { size: 85_000, profession: Laborer, wealth: 1.6, literacy: 0.82, ideology: Socialist },
+            PopSeed { size: 25_000, profession: Researcher, wealth: 3.5, literacy: 0.97, ideology: Progressive },
+        ],
+    );
+}
