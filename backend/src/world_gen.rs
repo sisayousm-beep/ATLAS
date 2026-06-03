@@ -4,6 +4,7 @@
 
 use crate::components::*;
 use crate::corporation::Corporation;
+use crate::finance::CentralBank;
 use crate::resources::{Deposits, Good, ResourceStock};
 use bevy_ecs::prelude::*;
 
@@ -58,18 +59,22 @@ fn spawn_region(
 
 fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f64) -> Entity {
     world
-        .spawn(Nation {
-            name: name.to_string(),
-            treasury,
-            debt: 0.0,
-            inflation: 0.02,
-            stability: 0.7,
-            prestige: 0.0,
-            technology: tech,
-            government: gov,
-            exports: 0.0,
-            imports: 0.0,
-        })
+        .spawn((
+            Nation {
+                name: name.to_string(),
+                treasury,
+                debt: 0.0,
+                inflation: 0.02,
+                stability: 0.7,
+                prestige: 0.0,
+                technology: tech,
+                government: gov,
+                exports: 0.0,
+                imports: 0.0,
+            },
+            // Phase 4: each nation runs its own central bank (design §11).
+            CentralBank::seed(treasury),
+        ))
         .id()
 }
 

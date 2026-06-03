@@ -5,6 +5,7 @@
 
 use crate::components::*;
 use crate::corporation::*;
+use crate::finance::*;
 use crate::production::*;
 use crate::resources::*;
 use bevy_ecs::prelude::*;
@@ -42,6 +43,16 @@ const TRADE_CAP: f64 = 0.5;
 const TRANSPORT_LOSS: f64 = 0.02;
 /// Quantities below this are treated as zero in the trade clearing pass.
 const TRADE_EPS: f64 = 1.0e-9;
+/// Monthly government outlay per head: welfare, services, administration.
+const WELFARE_PER_CAPITA: f64 = 2.0e-2;
+/// Share of a budget surplus a nation uses to pay down its debt each month.
+const DEBT_REPAY_SHARE: f64 = 0.25;
+/// How fast realised inflation eases toward this month's monetary growth.
+const INFLATION_EASE: f64 = 0.5;
+/// Inflation above this trips the financial-crisis flag (hyperinflation).
+const CRISIS_INFLATION: f64 = 0.12;
+/// Government debt above this share of the money supply also trips the flag.
+const CRISIS_DEBT_RATIO: f64 = 0.6;
 
 /// Build the daily schedule: all Phase 1 systems in fixed causal order.
 pub fn build_schedule() -> Schedule {
@@ -58,6 +69,10 @@ pub fn build_schedule() -> Schedule {
             pop_growth,
             collect_taxes,
             corporate_decisions,
+            government_finance,
+            update_inflation,
+            monetary_policy,
+            finance_oversight,
             update_market,
             report,
         )
@@ -395,6 +410,7 @@ pub fn corporate_decisions(
     pops: Query<&Pop>,
     mut corps: Query<&mut Corporation>,
     mut nations: Query<&mut Nation>,
+    banks: Query<&CentralBank>,
 ) {
     if !clock.is_month_start() {
         return;
@@ -414,11 +430,19 @@ pub fn corporate_decisions(
             }
             corp.capital -= tax;
 
+            // Monetary transmission (design §11): dear credit slows expansion.
+            // The home central bank's policy rate scales how many engineers a
+            // firm takes on this month — at the rate cap hiring nearly stops.
+            let rate = banks.get(corp.owner).map(|b| b.policy_rate).unwrap_or(0.03);
+            let drag = (1.0 - rate / RATE_CAP).clamp(0.2, 1.0);
+            let hire = HIRE_STEP * drag;
+            let cost = HIRE_COST * hire;
+
             // Reinvest in headcount if cash allows and engineers are free.
             let room = engineers.get(&corp.region).copied().unwrap_or(0.0);
-            if corp.capital > HIRE_COST * HIRE_STEP && corp.employees + HIRE_STEP <= room {
-                corp.employees += HIRE_STEP;
-                corp.capital -= HIRE_COST * HIRE_STEP;
+            if corp.capital > cost && corp.employees + hire <= room {
+                corp.employees += hire;
+                corp.capital -= cost;
             }
         } else if corp.profit < 0.0 {
             corp.employees = (corp.employees * 0.9).max(MIN_EMPLOYEES);
@@ -427,12 +451,117 @@ pub fn corporate_decisions(
     }
 }
 
+/// The fiscal side (design §11): once a month a government spends on its people
+/// (welfare, services, administration) and services its existing debt. Tax
+/// revenue (collected just before) and corporate tax fund it; any shortfall is
+/// borrowed — the central bank prints the money, so debt and the money supply
+/// both grow. A government in surplus pays part of it down.
+pub fn government_finance(
+    clock: Res<GameClock>,
+    mut nations: Query<(Entity, &mut Nation, &mut CentralBank)>,
+    regions: Query<&Region>,
+    pops: Query<&Pop>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+    let mut people: HashMap<Entity, f64> = HashMap::new();
+    for pop in &pops {
+        if let Ok(region) = regions.get(pop.region) {
+            *people.entry(region.owner).or_default() += pop.size as f64;
+        }
+    }
+
+    for (entity, mut nation, mut bank) in &mut nations {
+        let spending = people.get(&entity).copied().unwrap_or(0.0) * WELFARE_PER_CAPITA;
+        let interest = nation.debt * bank.policy_rate / 12.0;
+        let outlay = spending + interest;
+
+        if nation.treasury >= outlay {
+            nation.treasury -= outlay;
+            // Run a surplus down against the debt.
+            if nation.debt > 0.0 && nation.treasury > 0.0 {
+                let repay = (nation.treasury * DEBT_REPAY_SHARE).min(nation.debt);
+                nation.treasury -= repay;
+                nation.debt -= repay;
+            }
+        } else {
+            // Finance the gap by borrowing — the bank creates the money.
+            let shortfall = outlay - nation.treasury;
+            nation.treasury = 0.0;
+            nation.debt += shortfall;
+            bank.money_supply += shortfall;
+        }
+    }
+}
+
+/// Inflation is no longer fixed (design §11): each month it eases toward this
+/// month's monetary growth — the new money the bank printed to cover deficits.
+/// Stable money settles toward zero inflation; monetising a deficit shows up as
+/// inflation a month later. (Inflation is the *change* in the money/price level,
+/// not the level itself, so the absolute price-vs-base gap deliberately plays no
+/// part here.)
+pub fn update_inflation(clock: Res<GameClock>, mut nations: Query<(&mut Nation, &mut CentralBank)>) {
+    if !clock.is_month_start() {
+        return;
+    }
+    for (mut nation, mut bank) in &mut nations {
+        let growth = (bank.money_supply - bank.last_money_supply) / bank.last_money_supply.max(1.0);
+        nation.inflation += (growth - nation.inflation) * INFLATION_EASE;
+        bank.last_money_supply = bank.money_supply;
+    }
+}
+
+/// Monetary policy (design §11): each central bank moves its policy rate to lean
+/// against the inflation gap — raising when inflation runs above target, cutting
+/// when it falls below — bounded to a sane band.
+pub fn monetary_policy(clock: Res<GameClock>, mut banks: Query<(&Nation, &mut CentralBank)>) {
+    if !clock.is_month_start() {
+        return;
+    }
+    for (nation, mut bank) in &mut banks {
+        bank.policy_rate = policy_rate_after(bank.policy_rate, nation.inflation, bank.target_inflation);
+    }
+}
+
+/// Roll the per-nation finances up into the [`FinanceLedger`] for the report,
+/// and raise the crisis flag (design §11 events) on runaway inflation or a
+/// sovereign-debt spiral anywhere in the world.
+pub fn finance_oversight(
+    clock: Res<GameClock>,
+    nations: Query<(&Nation, &CentralBank)>,
+    mut ledger: ResMut<FinanceLedger>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+    let (mut gov_debt, mut money, mut infl, mut n) = (0.0, 0.0, 0.0, 0.0);
+    let mut max_rate: f64 = 0.0;
+    let mut crisis = false;
+    for (nation, bank) in &nations {
+        gov_debt += nation.debt;
+        money += bank.money_supply;
+        infl += nation.inflation;
+        max_rate = max_rate.max(bank.policy_rate);
+        n += 1.0;
+        if nation.inflation > CRISIS_INFLATION || nation.debt > CRISIS_DEBT_RATIO * bank.money_supply {
+            crisis = true;
+        }
+    }
+    ledger.gov_debt = gov_debt;
+    ledger.money_supply = money;
+    ledger.avg_inflation = if n > 0.0 { infl / n } else { 0.0 };
+    ledger.max_policy_rate = max_rate;
+    ledger.crisis = crisis;
+}
+
 /// Print a monthly state-of-the-world report.
 pub fn report(
     clock: Res<GameClock>,
     market: Res<Market>,
     ledger: Res<TradeLedger>,
-    nations: Query<(Entity, &Nation)>,
+    finance: Res<FinanceLedger>,
+    nations: Query<(Entity, &Nation, &CentralBank)>,
     regions: Query<(&Region, &ResourceStock)>,
     pops: Query<&Pop>,
     corps: Query<&Corporation>,
@@ -465,7 +594,7 @@ pub fn report(
         clock.month(),
         clock.day
     );
-    for (entity, nation) in &nations {
+    for (entity, nation, bank) in &nations {
         let pop = population.get(&entity).copied().unwrap_or(0);
         let g = grain.get(&entity).copied().unwrap_or(0.0);
         let happy = match happiness_weight.get(&entity).copied().unwrap_or(0.0) {
@@ -475,6 +604,10 @@ pub fn report(
         println!(
             "  {:<12} pop {:>10}  treasury {:>12.0}  grain {:>10.0}  happiness {:>4.2}  trade +{:>9.0}/-{:>9.0}",
             nation.name, pop, nation.treasury, g, happy, nation.exports, nation.imports
+        );
+        println!(
+            "  {:<12} rate {:>5.2}%  inflation {:>6.2}%  debt {:>12.0}  money {:>12.0}",
+            "", bank.policy_rate * 100.0, nation.inflation * 100.0, nation.debt, bank.money_supply
         );
     }
 
@@ -492,15 +625,26 @@ pub fn report(
     for corp in &corps {
         let nation = nations
             .get(corp.owner)
-            .map(|(_, n)| n.name.as_str())
+            .map(|(_, n, _)| n.name.as_str())
             .unwrap_or("?");
         println!(
             "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
             corp.name, nation, corp.capital, corp.employees, corp.profit
         );
     }
-    println!("  trade volume: steel {:>8.0}  car {:>8.0}  total value {:>12.0}\n",
+    println!("  trade volume: steel {:>8.0}  car {:>8.0}  total value {:>12.0}",
         ledger.volume(Good::Steel), ledger.volume(Good::Car), ledger.value);
+
+    // Finance dashboard (design §11): world money, debt, top rate, mean inflation.
+    println!(
+        "  finance: money {:>12.0}  gov debt {:>12.0}  top rate {:>5.2}%  avg inflation {:>6.2}%{}",
+        finance.money_supply,
+        finance.gov_debt,
+        finance.max_policy_rate * 100.0,
+        finance.avg_inflation * 100.0,
+        if finance.crisis { "  ⚠ FINANCIAL CRISIS" } else { "" }
+    );
+    println!();
 }
 
 fn terrain_food_mod(t: Terrain) -> f64 {

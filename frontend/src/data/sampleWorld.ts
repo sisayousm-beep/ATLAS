@@ -41,4 +41,14 @@ export const sampleWorld: WorldView = {
     { name: "Nordheim Steel", nationId: "nordheim", industries: ["Steel"], capital: -22_605, employees: 6_561 },
     { name: "Nordheim Motors", nationId: "nordheim", industries: ["Car"], capital: 479_942, employees: 17_000 },
   ],
+  // Phase 4, near the year-1 sim state. Aurelia and Nordheim run fat corporate-tax
+  // surpluses — stable money, zero inflation, rates cut to the floor. Khoresan's
+  // thin industry can't cover welfare, so it monetises the deficit: debt builds,
+  // inflation runs ~5%/mo, and its central bank hikes to fight it.
+  finance: [
+    { nationId: "aurelia", policyRate: 0.0, inflation: 0.0, debt: 0, moneySupply: 50_000 },
+    { nationId: "khoresan", policyRate: 0.107, inflation: 0.048, debt: 19_297, moneySupply: 57_297 },
+    { nationId: "nordheim", policyRate: 0.0, inflation: 0.0, debt: 0, moneySupply: 44_000 },
+  ],
+  crisis: false,
 };

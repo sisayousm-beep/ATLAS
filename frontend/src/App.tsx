@@ -4,6 +4,11 @@ import { AtlasMap } from "./map/AtlasMap";
 const nationColor = (id: string) =>
   sampleWorld.nations.find((n) => n.id === id)?.color ?? 0x888888;
 
+const nationName = (id: string) =>
+  sampleWorld.nations.find((n) => n.id === id)?.name ?? id;
+
+const swatch = (id: string) => `#${nationColor(id).toString(16).padStart(6, "0")}`;
+
 export default function App() {
   const totalPop = sampleWorld.regions.reduce((s, r) => s + r.population, 0);
 
@@ -11,7 +16,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Project Atlas</h1>
-        <span className="subtitle">Phase 3 · Corporations · Trade · Market</span>
+        <span className="subtitle">Phase 4 · Finance · Central Bank</span>
         <span className="stat">World population {totalPop.toLocaleString()}</span>
       </header>
 
@@ -48,11 +53,7 @@ export default function App() {
         <h2 className="panel-title">Corporations</h2>
         {sampleWorld.corporations.map((c) => (
           <div key={c.name} className="corp-row">
-            <span
-              className="swatch"
-              style={{ background: `#${nationColor(c.nationId).toString(16).padStart(6, "0")}` }}
-              title={c.nationId}
-            />
+            <span className="swatch" style={{ background: swatch(c.nationId) }} title={c.nationId} />
             <span className="corp-name">
               {c.name}
               <span className="corp-industries">{c.industries.join(", ")}</span>
@@ -60,6 +61,23 @@ export default function App() {
             <span className={`corp-capital ${c.capital < 0 ? "loss" : "profit"}`}>
               {c.capital < 0 ? "−" : ""}
               {Math.abs(c.capital).toLocaleString()}
+            </span>
+          </div>
+        ))}
+
+        <h2 className="panel-title">Finance · Central Bank</h2>
+        {sampleWorld.crisis && <div className="crisis-banner">⚠ Financial crisis</div>}
+        {sampleWorld.finance.map((f) => (
+          <div key={f.nationId} className="corp-row">
+            <span className="swatch" style={{ background: swatch(f.nationId) }} title={f.nationId} />
+            <span className="corp-name">
+              {nationName(f.nationId)}
+              <span className="corp-industries">
+                rate {(f.policyRate * 100).toFixed(1)}% · infl {(f.inflation * 100).toFixed(1)}%
+              </span>
+            </span>
+            <span className={`corp-capital ${f.debt > 0 ? "loss" : "profit"}`}>
+              {f.debt > 0 ? `−${f.debt.toLocaleString()}` : "—"}
             </span>
           </div>
         ))}

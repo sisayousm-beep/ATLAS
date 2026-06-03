@@ -28,8 +28,8 @@ db/        PostgreSQL schema + migrations
 
 1. ~~Phase 1 — Region, Nation, POP, Resources~~ ✅
 2. ~~Phase 2 — Production, Market, Prices~~ ✅
-3. **Phase 3** — Corporation AI, Trade  ← *current*
-4. Phase 4 — Finance, Central Bank
+3. ~~Phase 3 — Corporation AI, Trade~~ ✅
+4. **Phase 4** — Finance, Central Bank  ← *current*
 5. Phase 5 — Politics, Diplomacy
 6. Phase 6 — War
 7. Phase 7 — Nation AI
@@ -66,12 +66,38 @@ and cars; Khoresan runs a steep import deficit feeding others' factories; car
 plants are the most profitable firms while overbuilt steelworks run at a loss and
 lay off staff.
 
+### Phase 4 — Finance & Central Bank
+
+- **Central bank** — every nation runs one (design §11): it sets a policy
+  interest rate and tracks the broad money it has issued.
+- **Government finance** — monthly, a government spends on its people (welfare,
+  services, admin) and services its debt. Tax and corporate tax fund it; any
+  shortfall is borrowed and the central bank prints the money, so debt and the
+  money supply grow together. A surplus is run down against the debt.
+- **Inflation** — no longer a constant: it emerges from monetary growth, so
+  monetising a deficit shows up as inflation a month later.
+- **Monetary policy** — each bank leans its rate against the inflation gap
+  (Taylor-style), raising when inflation runs hot and cutting toward the floor
+  when money is stable.
+- **Transmission** — dear credit cools the real economy: a high policy rate
+  throttles how fast firms take on engineers.
+- **Crisis flag** — runaway inflation or a sovereign-debt spiral (design §11
+  events) raises a financial-crisis warning.
+
+Deferred from design §11 (post-MVP): tradable bond/stock markets, commercial
+banks, insurance and pensions.
+
+Emergent so far: corporate-tax-rich nations (Aurelia, Nordheim) run surpluses —
+stable money, ~0 inflation, rates cut to the floor — while thin-industry Khoresan
+can't cover welfare, monetises the deficit, and its central bank hikes rates near
+11% to fight the resulting inflation.
+
 ## Run
 
 ```bash
 cd backend
-cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade
-cargo test     # headless checks: world coherence + production/prices + firms/trade
+cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance
+cargo test     # headless checks: world coherence + production/prices + firms/trade + finance
 
 cd ../frontend
 npm install

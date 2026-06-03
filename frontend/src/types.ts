@@ -40,6 +40,19 @@ export interface CorporationView {
   employees: number;
 }
 
+export interface FinanceView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Central-bank policy interest rate, as a fraction (e.g. 0.05 = 5%). */
+  policyRate: number;
+  /** Current inflation, as a fraction. */
+  inflation: number;
+  /** Outstanding government debt. */
+  debt: number;
+  /** Broad money the central bank has issued. */
+  moneySupply: number;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
@@ -47,4 +60,8 @@ export interface WorldView {
   prices: GoodPrice[];
   /** Profit-seeking firms (Phase 3). */
   corporations: CorporationView[];
+  /** Per-nation money: central-bank rate, inflation, debt (Phase 4). */
+  finance: FinanceView[];
+  /** Whether the world is in a financial crisis (Phase 4, design §11). */
+  crisis: boolean;
 }
