@@ -35,9 +35,6 @@ impl Military {
     }
 }
 
-/// Share of treasury a nation devotes to its standing military each month
-/// (guns-vs-butter: it competes with welfare and debt service).
-pub const MILITARY_BUDGET_SHARE: f64 = 0.05;
 /// Standing strength bought per unit of treasury spent.
 pub const STRENGTH_PER_SPEND: f64 = 0.02;
 /// Monthly peacetime upkeep: the fraction of its strength a standing army sheds

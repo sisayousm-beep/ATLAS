@@ -5,6 +5,7 @@
 use crate::components::*;
 use crate::corporation::Corporation;
 use crate::finance::CentralBank;
+use crate::nation_ai::{AiPersonality, NationAi};
 use crate::politics::Politics;
 use crate::resources::{Deposits, Good, ResourceStock};
 use crate::war::Military;
@@ -59,7 +60,14 @@ fn spawn_region(
     region
 }
 
-fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f64) -> Entity {
+fn nation(
+    world: &mut World,
+    name: &str,
+    treasury: f64,
+    gov: Government,
+    tech: f64,
+    personality: AiPersonality,
+) -> Entity {
     world
         .spawn((
             Nation {
@@ -80,6 +88,8 @@ fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f
             Politics::seed(),
             // Phase 6: each nation fields a military, armed from the economy (§15).
             Military::seed(),
+            // Phase 7: each nation is run by a strategic AI brain (design §16).
+            NationAi::new(personality),
         ))
         .id()
 }
@@ -111,7 +121,8 @@ pub fn spawn_world(world: &mut World) {
     use Profession::*;
 
     // --- Aurelia: temperate breadbasket democracy, mines iron + coal ---
-    let aurelia = nation(world, "Aurelia", 10_000.0, Government::Democracy, 1.0);
+    // A diplomatic power: it courts its neighbours into alliances over arms.
+    let aurelia = nation(world, "Aurelia", 10_000.0, Government::Democracy, 1.0, AiPersonality::Diplomatic);
     let goldfields = spawn_region(
         world,
         aurelia,
@@ -144,7 +155,9 @@ pub fn spawn_world(world: &mut World) {
     );
 
     // --- Khoresan: arid autocracy, oil-rich but thin industry ---
-    let khoresan = nation(world, "Khoresan", 6_000.0, Government::Autocracy, 0.8);
+    // An aggressive autocracy — but a poor one, so its hunger for war keeps
+    // running into a treasury that can't fund it (and unrest tips it into survival).
+    let khoresan = nation(world, "Khoresan", 6_000.0, Government::Autocracy, 0.8, AiPersonality::Aggressive);
     let sandreach = spawn_region(
         world,
         khoresan,
@@ -177,7 +190,9 @@ pub fn spawn_world(world: &mut World) {
     );
 
     // --- Nordheim: cold continental monarchy, the industrial powerhouse ---
-    let nordheim = nation(world, "Nordheim", 8_000.0, Government::Monarchy, 1.1);
+    // A scientific power: it has the researchers, and pours treasury into climbing
+    // the technology ladder (design §12, §17).
+    let nordheim = nation(world, "Nordheim", 8_000.0, Government::Monarchy, 1.1, AiPersonality::Scientific);
     let frostmark = spawn_region(
         world,
         nordheim,

@@ -11,6 +11,7 @@ mod components;
 mod corporation;
 mod diplomacy;
 mod finance;
+mod nation_ai;
 mod politics;
 mod production;
 mod resources;
@@ -22,6 +23,7 @@ use bevy_ecs::prelude::*;
 use corporation::TradeLedger;
 use diplomacy::{Diplomacy, DiplomacyLedger};
 use finance::FinanceLedger;
+use nation_ai::AiLedger;
 use politics::PoliticsLedger;
 use production::Market;
 use resources::GameClock;
@@ -39,11 +41,12 @@ fn main() {
     world.insert_resource(DiplomacyLedger::default());
     world.insert_resource(Warfront::default());
     world.insert_resource(WarLedger::default());
+    world.insert_resource(AiLedger::default());
     world_gen::spawn_world(&mut world);
 
     let mut schedule = systems::build_schedule();
 
-    println!("Project Atlas — Phase 6 simulation (war as the extension of the economy).");
+    println!("Project Atlas — Phase 7 simulation (each nation run by a strategic AI).");
     println!("1 real second = 1 game day. Monthly reports below. Ctrl+C to stop.\n");
 
     loop {
@@ -62,6 +65,9 @@ mod tests {
         government_affinity, relation_after, relation_status, Diplomacy, DiplomacyLedger, Relation,
     };
     use crate::finance::{policy_rate_after, CentralBank, FinanceLedger, RATE_CAP};
+    use crate::nation_ai::{
+        in_survival, technology_after, AiLedger, AiPersonality, NationAi,
+    };
     use crate::politics::{
         government_aligns, government_for, stability_after, Politics, PoliticsLedger,
     };
@@ -85,6 +91,7 @@ mod tests {
         world.insert_resource(DiplomacyLedger::default());
         world.insert_resource(Warfront::default());
         world.insert_resource(WarLedger::default());
+        world.insert_resource(AiLedger::default());
         crate::world_gen::spawn_world(&mut world);
         world
     }
@@ -356,6 +363,7 @@ mod tests {
         world.insert_resource(DiplomacyLedger::default());
         world.insert_resource(Warfront::default());
         world.insert_resource(WarLedger::default());
+        world.insert_resource(AiLedger::default());
 
         let nation = world
             .spawn((
@@ -471,8 +479,9 @@ mod tests {
         world.insert_resource(DiplomacyLedger::default());
         world.insert_resource(Warfront::default());
         world.insert_resource(WarLedger::default());
+        world.insert_resource(AiLedger::default());
 
-        let nation = |world: &mut World, name: &str, gov: Government, strength: f64| {
+        let nation = |world: &mut World, name: &str, gov: Government, strength: f64, personality: AiPersonality| {
             world
                 .spawn((
                     Nation {
@@ -490,11 +499,12 @@ mod tests {
                     CentralBank::seed(5_000.0),
                     Politics::seed(),
                     Military { strength, exhaustion: 0.0 },
+                    NationAi::new(personality),
                 ))
                 .id()
         };
-        let aggressor = nation(&mut world, "Hegemon", Government::Autocracy, 600.0);
-        let defender = nation(&mut world, "Pacifica", Government::Democracy, 200.0);
+        let aggressor = nation(&mut world, "Hegemon", Government::Autocracy, 600.0, AiPersonality::Aggressive);
+        let defender = nation(&mut world, "Pacifica", Government::Democracy, 200.0, AiPersonality::Defensive);
 
         // Set the pair openly hostile so the autocracy has a casus belli.
         world
@@ -519,6 +529,75 @@ mod tests {
             def.treasury < 5_000.0,
             "war and reparations should drain the loser, got {}",
             def.treasury
+        );
+    }
+
+    /// Phase 7: each AI personality sets a distinct policy stance (design §16) —
+    /// hawks arm hard and reach for war, commercial and diplomatic powers never open
+    /// fire, only the diplomat courts allies and only the scientist funds labs — and
+    /// the adaptive rules behave: research lifts technology, a crumbling regime plays
+    /// for survival.
+    #[test]
+    fn ai_personalities_set_distinct_levers() {
+        use AiPersonality::*;
+        assert!(
+            Aggressive.military_share() > Commercial.military_share(),
+            "a hawk should out-arm a trader"
+        );
+        assert!(
+            Aggressive.aggression() > Defensive.aggression(),
+            "a hawk should reach for war more readily than a defender"
+        );
+        assert_eq!(Commercial.aggression(), 0.0, "a commercial power never starts a war");
+        assert_eq!(Diplomatic.aggression(), 0.0, "a diplomatic power never starts a war");
+        assert!(
+            Diplomatic.diplo_drive() > 0.0 && Aggressive.diplo_drive() == 0.0,
+            "only the diplomat courts its neighbours"
+        );
+        assert!(
+            Scientific.research_share() > 0.0 && Commercial.research_share() == 0.0,
+            "only the scientist funds research in earnest"
+        );
+        assert!(technology_after(1.0, 100.0) > 1.0, "research should lift technology");
+        assert!(in_survival(0.2) && !in_survival(0.8), "a crumbling regime plays for survival");
+    }
+
+    /// Phase 7: the personalities show up in the live world. Run the seed world for
+    /// three years; the scientific power (Nordheim) should climb the technology
+    /// ladder while a non-scientific neighbour (Khoresan), funding no labs, stays
+    /// put — and the AI ledger should track the tech leader.
+    #[test]
+    fn scientific_nation_climbs_the_tech_ladder() {
+        let mut world = new_world();
+        let mut schedule = crate::systems::build_schedule();
+
+        let tech_of = |world: &mut World, name: &str| -> f64 {
+            let mut q = world.query::<&Nation>();
+            q.iter(world).find(|n| n.name == name).map(|n| n.technology).unwrap()
+        };
+        let nordheim_before = tech_of(&mut world, "Nordheim");
+        let khoresan_before = tech_of(&mut world, "Khoresan");
+
+        for _ in 0..1080 {
+            schedule.run(&mut world);
+        }
+
+        let nordheim_after = tech_of(&mut world, "Nordheim");
+        let khoresan_after = tech_of(&mut world, "Khoresan");
+        assert!(
+            nordheim_after > nordheim_before,
+            "scientific Nordheim should grow its technology: {nordheim_before} -> {nordheim_after}"
+        );
+        assert_eq!(
+            khoresan_after, khoresan_before,
+            "a non-scientific power funds no labs, so its technology is unchanged"
+        );
+
+        let ai = world.resource::<AiLedger>();
+        assert!(
+            ai.max_technology >= nordheim_after,
+            "the AI ledger should track the tech leader: {} vs {nordheim_after}",
+            ai.max_technology
         );
     }
 }

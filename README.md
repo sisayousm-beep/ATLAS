@@ -15,13 +15,15 @@ See [`Project Atlas 설계도.json`](./Project%20Atlas%20%EC%84%A4%EA%B3%84%EB%8
 | Database      | PostgreSQL 17         |
 | Frontend      | React + TypeScript    |
 | Visualization | PixiJS                |
+| Desktop app   | Tauri (native shell)  |
 
 ## Layout
 
 ```
-backend/   Rust simulation core (bevy_ecs), real-time tick (1s = 1 game day)
-frontend/  React + TS + PixiJS client
-db/        PostgreSQL schema + migrations
+backend/            Rust simulation core (bevy_ecs), real-time tick (1s = 1 game day)
+frontend/           React + TS + PixiJS client
+frontend/src-tauri/ Tauri desktop shell (ships the client as a native app)
+db/                 PostgreSQL schema + migrations
 ```
 
 ## Roadmap (MVP phases)
@@ -31,8 +33,8 @@ db/        PostgreSQL schema + migrations
 3. ~~Phase 3 — Corporation AI, Trade~~ ✅
 4. ~~Phase 4 — Finance, Central Bank~~ ✅
 5. ~~Phase 5 — Politics, Diplomacy~~ ✅
-6. **Phase 6** — War  ← *current*
-7. Phase 7 — Nation AI
+6. ~~Phase 6 — War~~ ✅
+7. ~~Phase 7 — Nation AI~~ ✅
 
 ### Phase 2 — Production & Market
 
@@ -147,14 +149,50 @@ design, the world mostly stays at peace: the rivalry between Aurelia and Khoresa
 cold but no aggressor holds a decisive enough edge, so commerce keeps the guns
 holstered. War is a tool of last resort the economy rarely affords.
 
+### Phase 7 — Nation AI
+
+Every nation is now run by a strategic AI (design §16): a fixed *personality* that,
+each month, sets the policy levers the earlier phases already obey — it makes the
+nation a player, not a mechanism.
+
+- **Personalities** — an **aggressive** power arms hard and reaches for war readily;
+  a **defensive** one arms just as hard but strikes only under threat (deterrence,
+  not conquest); a **commercial** one keeps a token army and never opens fire,
+  banking the treasury it doesn't spend; a **diplomatic** one courts its neighbours,
+  warming relations toward alliance; a **scientific** one pours treasury into
+  research, climbing the technology ladder (design §12, §17) that nothing else moves.
+- **Levers, not new rules** — the AI mostly re-aims the existing machinery: how hard
+  each nation arms (Phase 6 build-up), how readily it reaches for the sword (Phase 6
+  ignition, scaling its government's raw war appetite), and how hard it courts its
+  neighbours (Phase 5 diplomacy). Research is the one new lever — a scientific power
+  converts treasury into technology, which in turn lifts its military power.
+- **Adaptive goals** — personality is fixed, but the AI is not blind (design §16
+  goals 성장·생존·패권): a nation whose regime is crumbling drops into *survival* — it
+  stops picking fights, trims the army and shutters its labs until it steadies.
+
+Emergent so far: the temperaments pull the three powers apart. Scientific Nordheim
+climbs the technology ladder quarter after quarter (≈1.1 → 1.3 in the first three
+months) while its non-scientific neighbours hold flat — a tech lead that compounds
+into military power and points at a tech victory (§17). Aggressive Khoresan keeps the
+keenest war appetite, but poor and thin-skinned it has nothing decisive to strike
+with; diplomatic Aurelia spends on its neighbours instead of arms, warming its
+relations toward alliance. As in Phase 6 the world stays at peace — now by the
+character of its nations, not merely their balance sheets.
+
 ## Run
 
 ```bash
 cd backend
-cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance, politics, military
-cargo test     # headless checks: world coherence + production/prices + firms/trade + finance + politics/diplomacy + war
+cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance, politics, military, nation AI
+cargo test     # headless checks across all seven phases (coherence, prices, trade, finance, politics, war, nation AI)
 
 cd ../frontend
 npm install
-npm run dev     # PixiJS map + live-style market panel
+npm run tauri dev     # launch the desktop app (Tauri native shell + Vite/PixiJS client)
+npm run tauri build   # build a native installer/binary into src-tauri/target/release
 ```
+
+The client ships as a **desktop app** via Tauri — not a website. `tauri dev` boots
+Vite and opens it in a native window; `tauri build` produces a standalone binary.
+Building needs the Rust toolchain (and on Windows, the WebView2 runtime, bundled
+with Windows 11). For browser-only UI work you can still run `npm run dev` alone.

@@ -7,6 +7,7 @@ use crate::components::*;
 use crate::corporation::*;
 use crate::diplomacy::*;
 use crate::finance::*;
+use crate::nation_ai::*;
 use crate::politics::*;
 use crate::production::*;
 use crate::resources::*;
@@ -57,31 +58,41 @@ const CRISIS_INFLATION: f64 = 0.12;
 /// Government debt above this share of the money supply also trips the flag.
 const CRISIS_DEBT_RATIO: f64 = 0.6;
 
-/// Build the daily schedule: all Phase 1 systems in fixed causal order.
+/// Build the daily schedule: all systems in fixed causal order. Split into two
+/// chained groups because a single `.chain()` tuple tops out at 20 systems; the
+/// outer `.chain()` keeps the second group strictly after the first, so the whole
+/// run stays one ordered sequence.
 pub fn build_schedule() -> Schedule {
     let mut schedule = Schedule::default();
     schedule.add_systems(
         (
-            advance_clock,
-            produce_food,
-            extract_resources,
-            trade_goods,
-            corporate_production,
-            consume_food,
-            consume_goods,
-            pop_growth,
-            political_unrest,
-            diplomacy,
-            collect_taxes,
-            corporate_decisions,
-            government_finance,
-            military_buildup,
-            warfare,
-            update_inflation,
-            monetary_policy,
-            finance_oversight,
-            update_market,
-            report,
+            (
+                advance_clock,
+                produce_food,
+                extract_resources,
+                trade_goods,
+                corporate_production,
+                consume_food,
+                consume_goods,
+                pop_growth,
+                political_unrest,
+                nation_ai,
+                diplomacy,
+            )
+                .chain(),
+            (
+                collect_taxes,
+                corporate_decisions,
+                government_finance,
+                military_buildup,
+                warfare,
+                update_inflation,
+                monetary_policy,
+                finance_oversight,
+                update_market,
+                report,
+            )
+                .chain(),
         )
             .chain(),
     );
@@ -517,6 +528,7 @@ pub fn political_unrest(
 pub fn diplomacy(
     clock: Res<GameClock>,
     mut nations: Query<(Entity, &mut Nation)>,
+    ais: Query<&NationAi>,
     mut diplo: ResMut<Diplomacy>,
     mut ledger: ResMut<DiplomacyLedger>,
     wars: Res<Warfront>,
@@ -538,12 +550,16 @@ pub fn diplomacy(
             let key = Diplomacy::pair(a, b);
             let trade_value = trade.get(&key).copied().unwrap_or(0.0);
             let current = *diplo.relations.get(&key).unwrap_or(&0.0);
+            // A diplomatic AI on either side warms the tie (Phase 7): its drive
+            // lifts the relation's target toward alliance.
+            let drive = ais.get(a).map(|ai| ai.diplo_drive).unwrap_or(0.0)
+                + ais.get(b).map(|ai| ai.diplo_drive).unwrap_or(0.0);
             // A war freezes the relation at its wartime low; otherwise it eases
-            // toward government affinity plus the commercial-peace bonus.
+            // toward government affinity plus the commercial-peace and diplomacy bonuses.
             let next = if wars.at_war(a, b) {
                 current
             } else {
-                relation_after(current, government_affinity(ga, gb), trade_value)
+                relation_after(current, government_affinity(ga, gb) + drive, trade_value)
             };
             diplo.relations.insert(key, next);
             match relation_status(next) {
@@ -672,16 +688,62 @@ pub fn government_finance(
     }
 }
 
-/// Military build-up (design §15), run monthly. Each nation funds its standing
-/// army out of the treasury (경제력→산업력→무기); the spending buys strength, then
-/// peacetime upkeep takes its cut. A broke nation can't arm — military power rests
-/// on the economy, exactly as the design intends.
-pub fn military_buildup(clock: Res<GameClock>, mut nations: Query<(&mut Nation, &mut Military)>) {
+/// The nation AI (design §16), run monthly — the strategic brain of every nation.
+/// From its fixed personality it resolves this month's policy levers for the rest
+/// of the schedule to read: how hard it arms (Phase 6), how readily it goes to war
+/// (Phase 6), and how hard it courts its neighbours (Phase 5). A scientific power
+/// also spends treasury on research, lifting its technology — the one lever nothing
+/// else moves. A nation whose regime is crumbling drops into survival: it stops
+/// picking fights, trims the army and shutters its labs (design §16 goals).
+pub fn nation_ai(
+    clock: Res<GameClock>,
+    mut nations: Query<(&mut Nation, &mut NationAi)>,
+    mut ledger: ResMut<AiLedger>,
+) {
     if !clock.is_month_start() {
         return;
     }
-    for (mut nation, mut mil) in &mut nations {
-        let spend = (nation.treasury * MILITARY_BUDGET_SHARE).max(0.0);
+    let (mut tech_sum, mut tech_max, mut survivors, mut n) = (0.0, 0.0_f64, 0u32, 0.0);
+    for (mut nation, mut ai) in &mut nations {
+        let survival = in_survival(nation.stability);
+        let p = ai.personality;
+        ai.military_share = p.military_share() * if survival { SURVIVAL_MILITARY_TRIM } else { 1.0 };
+        ai.aggression = if survival { 0.0 } else { p.aggression() };
+        ai.diplo_drive = p.diplo_drive();
+
+        // Research: a scientific power converts treasury into technology; a regime
+        // fighting for its life lets the labs go dark.
+        let research_share = if survival { 0.0 } else { p.research_share() };
+        let spend = (nation.treasury * research_share).max(0.0);
+        nation.treasury -= spend;
+        nation.technology = technology_after(nation.technology, spend);
+
+        if survival {
+            survivors += 1;
+        }
+        tech_sum += nation.technology;
+        tech_max = tech_max.max(nation.technology);
+        n += 1.0;
+    }
+    ledger.avg_technology = if n > 0.0 { tech_sum / n } else { 0.0 };
+    ledger.max_technology = tech_max;
+    ledger.in_survival = survivors;
+}
+
+/// Military build-up (design §15), run monthly. Each nation funds its standing
+/// army out of the treasury (경제력→산업력→무기) at the share its AI chose this month
+/// (Phase 7); the spending buys strength, then peacetime upkeep takes its cut. A
+/// broke nation can't arm — military power rests on the economy, exactly as the
+/// design intends.
+pub fn military_buildup(
+    clock: Res<GameClock>,
+    mut nations: Query<(&mut Nation, &mut Military, &NationAi)>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+    for (mut nation, mut mil, ai) in &mut nations {
+        let spend = (nation.treasury * ai.military_share).max(0.0);
         nation.treasury -= spend;
         mil.strength = strength_after(mil.strength, spend);
     }
@@ -696,7 +758,7 @@ pub fn military_buildup(clock: Res<GameClock>, mut nations: Query<(&mut Nation, 
 /// their relation is frozen cold.
 pub fn warfare(
     clock: Res<GameClock>,
-    mut nations: Query<(Entity, &mut Nation, &mut Military, &mut CentralBank)>,
+    mut nations: Query<(Entity, &mut Nation, &mut Military, &mut CentralBank, &NationAi)>,
     regions: Query<&Region>,
     pops: Query<&Pop>,
     mut diplo: ResMut<Diplomacy>,
@@ -732,9 +794,10 @@ pub fn warfare(
         technology: f64,
         gov: Government,
         soldiers: f64,
+        aggression: f64,
     }
     let mut snap: HashMap<Entity, Snap> = HashMap::new();
-    for (e, n, m, b) in &nations {
+    for (e, n, m, b, ai) in &nations {
         snap.insert(
             e,
             Snap {
@@ -748,6 +811,7 @@ pub fn warfare(
                 technology: n.technology,
                 gov: n.government,
                 soldiers: soldiers.get(&e).copied().unwrap_or(0.0),
+                aggression: ai.aggression,
             },
         );
     }
@@ -768,7 +832,12 @@ pub fn warfare(
             } else {
                 (b, a, pb, pa)
             };
-            if war_appetite(snap[&aggressor].gov) >= WAR_APPETITE_MIN && ap >= dp * WAR_POWER_EDGE {
+            // Phase 7: the AI's personality scales its government's raw war
+            // appetite — a hawk strikes where its regime alone would hold, a
+            // commercial or cornered nation never opens fire.
+            if war_appetite(snap[&aggressor].gov) * snap[&aggressor].aggression >= WAR_APPETITE_MIN
+                && ap >= dp * WAR_POWER_EDGE
+            {
                 wars.wars.push(War { aggressor, defender, months: 0, score: 0.0 });
                 diplo.relations.insert(Diplomacy::pair(a, b), WAR_DECLARE_RELATION);
                 ledger.wars_started += 1;
@@ -843,7 +912,7 @@ pub fn warfare(
     ledger.active_wars = wars.wars.len() as u32;
 
     // Write the snapshot back into the world.
-    for (e, mut n, mut m, mut b) in &mut nations {
+    for (e, mut n, mut m, mut b, _ai) in &mut nations {
         if let Some(s) = snap.get(&e) {
             n.treasury = s.treasury;
             n.debt = s.debt;
@@ -925,8 +994,9 @@ pub fn report(
     politics_led: Res<PoliticsLedger>,
     diplo_led: Res<DiplomacyLedger>,
     war_led: Res<WarLedger>,
+    ai_led: Res<AiLedger>,
     wars: Res<Warfront>,
-    nations: Query<(Entity, &Nation, &CentralBank, &Politics, &Military)>,
+    nations: Query<(Entity, &Nation, &CentralBank, &Politics, &Military, &NationAi)>,
     regions: Query<(&Region, &ResourceStock)>,
     pops: Query<&Pop>,
     corps: Query<&Corporation>,
@@ -963,7 +1033,7 @@ pub fn report(
         clock.month(),
         clock.day
     );
-    for (entity, nation, bank, politics, military) in &nations {
+    for (entity, nation, bank, politics, military, ai) in &nations {
         let pop = population.get(&entity).copied().unwrap_or(0);
         let g = grain.get(&entity).copied().unwrap_or(0.0);
         let happy = match happiness_weight.get(&entity).copied().unwrap_or(0.0) {
@@ -990,6 +1060,11 @@ pub fn report(
             "", power, military.strength, sol, military.exhaustion,
             if wars.belligerent(entity) { "  ⚔ AT WAR" } else { "" }
         );
+        println!(
+            "  {:<12} ai {:<10?}  tech {:>5.2}{}",
+            "", ai.personality, nation.technology,
+            if in_survival(nation.stability) { "  ⚑ SURVIVAL" } else { "" }
+        );
     }
 
     // Market snapshot across the active production chain.
@@ -1006,7 +1081,7 @@ pub fn report(
     for corp in &corps {
         let nation = nations
             .get(corp.owner)
-            .map(|(_, n, _, _, _)| n.name.as_str())
+            .map(|(_, n, _, _, _, _)| n.name.as_str())
             .unwrap_or("?");
         println!(
             "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
@@ -1043,6 +1118,10 @@ pub fn report(
         "  war: active {}  started {}  ended {}{}",
         war_led.active_wars, war_led.wars_started, war_led.wars_ended,
         if war_led.active_wars > 0 { "  ⚔ WAR" } else { "" }
+    );
+    println!(
+        "  ai: avg tech {:>5.2}  top tech {:>5.2}  in survival {}",
+        ai_led.avg_technology, ai_led.max_technology, ai_led.in_survival
     );
     println!();
 }
