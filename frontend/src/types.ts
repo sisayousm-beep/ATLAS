@@ -18,7 +18,20 @@ export interface RegionView {
   y: number;
 }
 
+export type GoodTier = "raw" | "intermediate" | "finished";
+
+export interface GoodPrice {
+  good: string;
+  tier: GoodTier;
+  /** Live market price. */
+  price: number;
+  /** Reference price; the live price drifts around this. */
+  base: number;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
+  /** Global commodity prices (Phase 2). */
+  prices: GoodPrice[];
 }

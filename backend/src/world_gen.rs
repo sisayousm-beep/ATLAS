@@ -3,7 +3,7 @@
 //! procedural generation of 200–500 regions comes later.
 
 use crate::components::*;
-use crate::resources::ResourceStock;
+use crate::resources::{Deposits, Good, ResourceStock};
 use bevy_ecs::prelude::*;
 
 struct PopSeed {
@@ -23,6 +23,7 @@ fn spawn_region(
     terrain: Terrain,
     climate: Climate,
     infrastructure: f64,
+    deposits: &[(Good, f64)],
     pops: &[PopSeed],
 ) {
     let region = world
@@ -35,6 +36,7 @@ fn spawn_region(
                 owner: nation,
             },
             ResourceStock::default(),
+            Deposits(deposits.iter().copied().collect()),
         ))
         .id();
 
@@ -70,7 +72,7 @@ pub fn spawn_world(world: &mut World) {
     use Ideology::*;
     use Profession::*;
 
-    // --- Aurelia: temperate breadbasket democracy ---
+    // --- Aurelia: temperate breadbasket democracy, mines iron + coal ---
     let aurelia = nation(world, "Aurelia", 10_000.0, Government::Democracy, 1.0);
     spawn_region(
         world,
@@ -79,9 +81,11 @@ pub fn spawn_world(world: &mut World) {
         Terrain::Plains,
         Climate::Temperate,
         0.7,
+        &[(Good::IronOre, 0.8), (Good::Coal, 0.7)],
         &[
             PopSeed { size: 120_000, profession: Farmer, wealth: 1.5, literacy: 0.8, ideology: Liberal },
             PopSeed { size: 60_000, profession: Laborer, wealth: 1.2, literacy: 0.7, ideology: Progressive },
+            PopSeed { size: 25_000, profession: Engineer, wealth: 3.5, literacy: 0.9, ideology: Liberal },
             PopSeed { size: 15_000, profession: Merchant, wealth: 3.0, literacy: 0.9, ideology: Conservative },
         ],
     );
@@ -92,6 +96,7 @@ pub fn spawn_world(world: &mut World) {
         Terrain::Coast,
         Climate::Temperate,
         0.85,
+        &[(Good::Oil, 0.9)],
         &[
             PopSeed { size: 40_000, profession: Farmer, wealth: 1.3, literacy: 0.85, ideology: Liberal },
             PopSeed { size: 90_000, profession: Laborer, wealth: 1.4, literacy: 0.8, ideology: Progressive },
@@ -99,7 +104,7 @@ pub fn spawn_world(world: &mut World) {
         ],
     );
 
-    // --- Khoresan: arid autocracy, thinner farming ---
+    // --- Khoresan: arid autocracy, oil-rich but thin industry ---
     let khoresan = nation(world, "Khoresan", 6_000.0, Government::Autocracy, 0.8);
     spawn_region(
         world,
@@ -108,9 +113,11 @@ pub fn spawn_world(world: &mut World) {
         Terrain::Desert,
         Climate::Arid,
         0.4,
+        &[(Good::Oil, 1.2)],
         &[
             PopSeed { size: 70_000, profession: Farmer, wealth: 0.8, literacy: 0.4, ideology: Conservative },
             PopSeed { size: 50_000, profession: Laborer, wealth: 0.9, literacy: 0.5, ideology: Conservative },
+            PopSeed { size: 8_000, profession: Engineer, wealth: 1.8, literacy: 0.55, ideology: Conservative },
             PopSeed { size: 10_000, profession: Soldier, wealth: 1.5, literacy: 0.6, ideology: Militarist },
         ],
     );
@@ -121,13 +128,16 @@ pub fn spawn_world(world: &mut World) {
         Terrain::Hills,
         Climate::Arid,
         0.5,
+        &[(Good::IronOre, 0.7), (Good::Coal, 0.5)],
         &[
             PopSeed { size: 55_000, profession: Farmer, wealth: 1.0, literacy: 0.5, ideology: Conservative },
+            PopSeed { size: 20_000, profession: Laborer, wealth: 0.9, literacy: 0.5, ideology: Conservative },
+            PopSeed { size: 6_000, profession: Engineer, wealth: 2.0, literacy: 0.6, ideology: Liberal },
             PopSeed { size: 8_000, profession: Merchant, wealth: 2.5, literacy: 0.7, ideology: Liberal },
         ],
     );
 
-    // --- Nordheim: cold continental monarchy, industrial leaning ---
+    // --- Nordheim: cold continental monarchy, the industrial powerhouse ---
     let nordheim = nation(world, "Nordheim", 8_000.0, Government::Monarchy, 1.1);
     spawn_region(
         world,
@@ -136,9 +146,11 @@ pub fn spawn_world(world: &mut World) {
         Terrain::Plains,
         Climate::Continental,
         0.75,
+        &[(Good::IronOre, 0.9), (Good::Coal, 0.8), (Good::Oil, 0.4)],
         &[
             PopSeed { size: 65_000, profession: Farmer, wealth: 1.4, literacy: 0.85, ideology: Conservative },
             PopSeed { size: 85_000, profession: Laborer, wealth: 1.6, literacy: 0.82, ideology: Socialist },
+            PopSeed { size: 30_000, profession: Engineer, wealth: 4.2, literacy: 0.95, ideology: Progressive },
             PopSeed { size: 25_000, profession: Researcher, wealth: 3.5, literacy: 0.97, ideology: Progressive },
         ],
     );

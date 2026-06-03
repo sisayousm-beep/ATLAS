@@ -31,6 +31,11 @@ pub enum Good {
     Robot,
 }
 
+/// Natural endowment of a region: how rich it is in each raw good, as a
+/// multiplier on extraction (design §6). Empty = nothing to mine here.
+#[derive(Component, Debug, Default)]
+pub struct Deposits(pub HashMap<Good, f64>);
+
 /// Per-region warehouse. Maps a good to the amount held.
 #[derive(Component, Debug, Default)]
 pub struct ResourceStock(pub HashMap<Good, f64>);

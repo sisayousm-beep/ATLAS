@@ -15,7 +15,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 180px;
+  grid-template-columns: 1fr 220px;
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "topbar topbar"
@@ -81,4 +81,69 @@ body {
   height: 14px;
   border-radius: 3px;
   display: inline-block;
+}
+
+.panel-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #8b93b8;
+}
+
+.panel-title:not(:first-child) {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #1c2340;
+}
+
+.price-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto 14px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.tier-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* raw → intermediate → finished, low to high tier */
+.tier-raw {
+  background: #6b7a52;
+}
+.tier-intermediate {
+  background: #c79a4a;
+}
+.tier-finished {
+  background: #b5556b;
+}
+
+.good-name {
+  color: #c5cbe6;
+}
+
+.good-price {
+  color: #e6e9f5;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend {
+  font-size: 10px;
+  text-align: center;
+}
+.trend-up {
+  color: #e0686d;
+}
+.trend-down {
+  color: #5fb98a;
+}
+.trend-flat {
+  color: #6b7398;
 }
