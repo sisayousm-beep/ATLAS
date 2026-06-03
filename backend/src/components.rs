@@ -90,7 +90,7 @@ pub enum Profession {
     Unemployed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Ideology {
     Conservative,
     Progressive,

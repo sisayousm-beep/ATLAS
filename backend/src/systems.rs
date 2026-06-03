@@ -5,7 +5,9 @@
 
 use crate::components::*;
 use crate::corporation::*;
+use crate::diplomacy::*;
 use crate::finance::*;
+use crate::politics::*;
 use crate::production::*;
 use crate::resources::*;
 use bevy_ecs::prelude::*;
@@ -67,6 +69,8 @@ pub fn build_schedule() -> Schedule {
             consume_food,
             consume_goods,
             pop_growth,
+            political_unrest,
+            diplomacy,
             collect_taxes,
             corporate_decisions,
             government_finance,
@@ -151,6 +155,7 @@ pub fn trade_goods(
     mut nations: Query<&mut Nation>,
     market: Res<Market>,
     mut ledger: ResMut<TradeLedger>,
+    mut diplo: ResMut<Diplomacy>,
 ) {
     /// A region's standing for one good during the clearing pass.
     struct Node {
@@ -215,6 +220,8 @@ pub fn trade_goods(
             if nodes[s].owner != nodes[d].owner {
                 trade_value.entry(nodes[s].owner).or_default().0 += value;
                 trade_value.entry(nodes[d].owner).or_default().1 += value;
+                // Commerce across a border warms the two nations' relations.
+                diplo.record_trade(nodes[s].owner, nodes[d].owner, value);
             }
         }
 
@@ -396,7 +403,156 @@ pub fn collect_taxes(
     }
     for (entity, mut nation) in &mut nations {
         if let Some(&amount) = income.get(&entity) {
-            nation.treasury += amount;
+            // Unrest erodes compliance: an unstable state collects less of its due.
+            nation.treasury += amount * tax_compliance(nation.stability);
+        }
+    }
+}
+
+/// Politics (design §13), run monthly. Each nation's stability eases toward how
+/// content its people are (happiness) and how much of them the government
+/// represents (support from aligned ideologies). Deep unrest that persists tips
+/// into a revolution or coup: the largest ideological bloc seizes power and
+/// installs its own government, resetting stability at a honeymoon level.
+pub fn political_unrest(
+    clock: Res<GameClock>,
+    regions: Query<&Region>,
+    pops: Query<&Pop>,
+    mut nations: Query<(Entity, &mut Nation, &mut Politics)>,
+    mut ledger: ResMut<PoliticsLedger>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+
+    // Per nation: total heads, happiness-weighted heads, and the size of each
+    // ideological bloc (so we can measure support and find the revolution's heir).
+    #[derive(Default)]
+    struct Tally {
+        total: f64,
+        happy: f64,
+        ideology: HashMap<Ideology, f64>,
+    }
+    let mut tally: HashMap<Entity, Tally> = HashMap::new();
+    for pop in &pops {
+        if let Ok(region) = regions.get(pop.region) {
+            let t = tally.entry(region.owner).or_default();
+            let size = pop.size as f64;
+            t.total += size;
+            t.happy += pop.happiness * size;
+            *t.ideology.entry(pop.ideology).or_default() += size;
+        }
+    }
+
+    let (mut sum_stab, mut min_stab, mut unrest_count, mut revolutions) = (0.0, 1.0_f64, 0, 0);
+    let mut n = 0.0;
+    for (entity, mut nation, mut politics) in &mut nations {
+        let Some(t) = tally.get(&entity) else { continue };
+        if t.total <= 0.0 {
+            continue;
+        }
+        let avg_happy = t.happy / t.total;
+        let support: f64 = t
+            .ideology
+            .iter()
+            .filter(|(&id, _)| government_aligns(nation.government, id))
+            .map(|(_, &v)| v)
+            .sum::<f64>()
+            / t.total;
+
+        nation.stability = stability_after(nation.stability, avg_happy, support);
+
+        if nation.stability < UNREST_THRESHOLD {
+            politics.turmoil_months += 1;
+            unrest_count += 1;
+        } else {
+            politics.turmoil_months = 0;
+        }
+
+        // Sustained, deep unrest tips into revolution/coup (design §13).
+        if nation.stability < REVOLT_THRESHOLD && politics.turmoil_months >= REVOLT_MONTHS {
+            if let Some((&winner, _)) = t
+                .ideology
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            {
+                nation.government = government_for(winner);
+            }
+            nation.stability = REVOLT_RESET; // new-regime honeymoon
+            nation.prestige -= REVOLT_PRESTIGE; // upheaval costs standing
+            politics.turmoil_months = 0;
+            revolutions += 1;
+        }
+
+        politics.unrest = 1.0 - nation.stability;
+        sum_stab += nation.stability;
+        min_stab = min_stab.min(nation.stability);
+        n += 1.0;
+    }
+
+    ledger.avg_stability = if n > 0.0 { sum_stab / n } else { 0.0 };
+    ledger.min_stability = if n > 0.0 { min_stab } else { 0.0 };
+    ledger.unrest_count = unrest_count;
+    ledger.revolutions = revolutions;
+}
+
+/// Diplomacy (design §14), run monthly. Every relation eases toward a target of
+/// government compatibility plus a commercial-peace bonus from the month's
+/// cross-border trade, then the standing of a nation's neighbours feeds back into
+/// its prestige and the stability of its regime (design §14 → §13).
+pub fn diplomacy(
+    clock: Res<GameClock>,
+    mut nations: Query<(Entity, &mut Nation)>,
+    mut diplo: ResMut<Diplomacy>,
+    mut ledger: ResMut<DiplomacyLedger>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+
+    // Snapshot governments before we mutate prestige/stability below.
+    let govs: Vec<(Entity, Government)> = nations.iter().map(|(e, n)| (e, n.government)).collect();
+    // Drain this month's commerce so only recent trade counts toward relations.
+    let trade = std::mem::take(&mut diplo.trade_flow);
+
+    let (mut allies, mut rivalries) = (0, 0);
+    for i in 0..govs.len() {
+        for j in (i + 1)..govs.len() {
+            let (a, ga) = govs[i];
+            let (b, gb) = govs[j];
+            let key = Diplomacy::pair(a, b);
+            let trade_value = trade.get(&key).copied().unwrap_or(0.0);
+            let current = *diplo.relations.get(&key).unwrap_or(&0.0);
+            let next = relation_after(current, government_affinity(ga, gb), trade_value);
+            diplo.relations.insert(key, next);
+            match relation_status(next) {
+                Relation::Ally => allies += 1,
+                Relation::Rival | Relation::Hostile => rivalries += 1,
+                Relation::Neutral => {}
+            }
+        }
+    }
+    ledger.allies = allies;
+    ledger.rivalries = rivalries;
+
+    // Average each nation's relations, then let a friendly neighbourhood lift its
+    // prestige and steady its regime — and hostility erode both.
+    let mut net: HashMap<Entity, (f64, u32)> = HashMap::new();
+    for (&(a, b), &score) in &diplo.relations {
+        let ea = net.entry(a).or_default();
+        ea.0 += score;
+        ea.1 += 1;
+        let eb = net.entry(b).or_default();
+        eb.0 += score;
+        eb.1 += 1;
+    }
+    for (entity, mut nation) in &mut nations {
+        if let Some(&(sum, count)) = net.get(&entity) {
+            if count > 0 {
+                let avg = sum / count as f64;
+                nation.prestige += avg * PRESTIGE_GAIN;
+                nation.stability = (nation.stability + avg * STABILITY_DIPLO).clamp(0.0, 1.0);
+            }
         }
     }
 }
@@ -561,7 +717,9 @@ pub fn report(
     market: Res<Market>,
     ledger: Res<TradeLedger>,
     finance: Res<FinanceLedger>,
-    nations: Query<(Entity, &Nation, &CentralBank)>,
+    politics_led: Res<PoliticsLedger>,
+    diplo_led: Res<DiplomacyLedger>,
+    nations: Query<(Entity, &Nation, &CentralBank, &Politics)>,
     regions: Query<(&Region, &ResourceStock)>,
     pops: Query<&Pop>,
     corps: Query<&Corporation>,
@@ -594,7 +752,7 @@ pub fn report(
         clock.month(),
         clock.day
     );
-    for (entity, nation, bank) in &nations {
+    for (entity, nation, bank, politics) in &nations {
         let pop = population.get(&entity).copied().unwrap_or(0);
         let g = grain.get(&entity).copied().unwrap_or(0.0);
         let happy = match happiness_weight.get(&entity).copied().unwrap_or(0.0) {
@@ -608,6 +766,11 @@ pub fn report(
         println!(
             "  {:<12} rate {:>5.2}%  inflation {:>6.2}%  debt {:>12.0}  money {:>12.0}",
             "", bank.policy_rate * 100.0, nation.inflation * 100.0, nation.debt, bank.money_supply
+        );
+        println!(
+            "  {:<12} {:<10?}  stability {:>4.2}  unrest {:>4.2}  prestige {:>7.1}{}",
+            "", nation.government, nation.stability, politics.unrest, nation.prestige,
+            if politics.unrest > 1.0 - UNREST_THRESHOLD { "  ⚑ UNREST" } else { "" }
         );
     }
 
@@ -625,7 +788,7 @@ pub fn report(
     for corp in &corps {
         let nation = nations
             .get(corp.owner)
-            .map(|(_, n, _)| n.name.as_str())
+            .map(|(_, n, _, _)| n.name.as_str())
             .unwrap_or("?");
         println!(
             "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
@@ -643,6 +806,20 @@ pub fn report(
         finance.max_policy_rate * 100.0,
         finance.avg_inflation * 100.0,
         if finance.crisis { "  ⚠ FINANCIAL CRISIS" } else { "" }
+    );
+
+    // Politics (design §13) and diplomacy (design §14) dashboards.
+    println!(
+        "  politics: avg stability {:>4.2}  min {:>4.2}  in unrest {}  revolutions {}{}",
+        politics_led.avg_stability,
+        politics_led.min_stability,
+        politics_led.unrest_count,
+        politics_led.revolutions,
+        if politics_led.revolutions > 0 { "  ⚑ REGIME CHANGE" } else { "" }
+    );
+    println!(
+        "  diplomacy: allies {}  rivalries {}",
+        diplo_led.allies, diplo_led.rivalries
     );
     println!();
 }

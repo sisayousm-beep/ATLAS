@@ -189,3 +189,75 @@ body {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* Politics: a stability bar reading right (calm) to red (boiling). */
+.stability {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #c5cbe6;
+}
+
+.stability-track {
+  width: 46px;
+  height: 6px;
+  border-radius: 3px;
+  background: #1c2340;
+  overflow: hidden;
+}
+
+.stability-fill {
+  display: block;
+  height: 100%;
+}
+.stability-fill.high {
+  background: #5fb98a;
+}
+.stability-fill.mid {
+  background: #c79a4a;
+}
+.stability-fill.low {
+  background: #e0686d;
+}
+
+/* Diplomacy: relation rows with a status read off the score. */
+.rel-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: 13px;
+}
+
+.rel-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #c5cbe6;
+}
+
+.swatch-sm {
+  width: 10px;
+  height: 10px;
+}
+
+.rel-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rel-ally {
+  color: #5fb98a;
+}
+.rel-neutral {
+  color: #8b93b8;
+}
+.rel-rival {
+  color: #c79a4a;
+}
+.rel-hostile {
+  color: #e0686d;
+}

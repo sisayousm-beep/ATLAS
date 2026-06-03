@@ -53,6 +53,28 @@ export interface FinanceView {
   moneySupply: number;
 }
 
+export interface PoliticsView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Government type, e.g. "Democracy". */
+  government: string;
+  /** Regime stability, 0..1. */
+  stability: number;
+  /** Unrest, 0..1 — the mirror of stability. */
+  unrest: number;
+}
+
+export type RelationStatus = "ally" | "neutral" | "rival" | "hostile";
+
+export interface RelationView {
+  /** The two nations, matching `NationView.id`. */
+  a: string;
+  b: string;
+  status: RelationStatus;
+  /** Relation score, -1 (hostile) .. 1 (ally). */
+  score: number;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
@@ -64,4 +86,8 @@ export interface WorldView {
   finance: FinanceView[];
   /** Whether the world is in a financial crisis (Phase 4, design §11). */
   crisis: boolean;
+  /** Per-nation political state: government, stability, unrest (Phase 5, §13). */
+  politics: PoliticsView[];
+  /** Pairwise relations between nations (Phase 5, §14). */
+  relations: RelationView[];
 }

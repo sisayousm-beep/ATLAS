@@ -51,4 +51,21 @@ export const sampleWorld: WorldView = {
     { nationId: "nordheim", policyRate: 0.0, inflation: 0.0, debt: 0, moneySupply: 44_000 },
   ],
   crisis: false,
+  // Phase 5, near the year-1 sim state. Aurelia's liberal democracy represents
+  // its people and runs calm; Nordheim's monarchy is steady. Khoresan's autocracy
+  // sits on a poorer, inflation-bitten populace, so stability sags and unrest runs
+  // hot — the kind of pressure that, sustained, tips into a coup.
+  politics: [
+    { nationId: "aurelia", government: "Democracy", stability: 0.82, unrest: 0.18 },
+    { nationId: "khoresan", government: "Autocracy", stability: 0.46, unrest: 0.54 },
+    { nationId: "nordheim", government: "Monarchy", stability: 0.71, unrest: 0.29 },
+  ],
+  // Commerce binds the two industrial powers into an alliance despite the
+  // democracy/monarchy divide; the authoritarian pair keeps a cool neutrality;
+  // and the ideological gulf leaves Aurelia and Khoresan rivals.
+  relations: [
+    { a: "aurelia", b: "nordheim", status: "ally", score: 0.52 },
+    { a: "khoresan", b: "nordheim", status: "neutral", score: 0.34 },
+    { a: "aurelia", b: "khoresan", status: "rival", score: -0.18 },
+  ],
 };

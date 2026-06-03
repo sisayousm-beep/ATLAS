@@ -9,7 +9,9 @@
 
 mod components;
 mod corporation;
+mod diplomacy;
 mod finance;
+mod politics;
 mod production;
 mod resources;
 mod systems;
@@ -17,7 +19,9 @@ mod world_gen;
 
 use bevy_ecs::prelude::*;
 use corporation::TradeLedger;
+use diplomacy::{Diplomacy, DiplomacyLedger};
 use finance::FinanceLedger;
+use politics::PoliticsLedger;
 use production::Market;
 use resources::GameClock;
 use std::{thread, time::Duration};
@@ -28,11 +32,14 @@ fn main() {
     world.insert_resource(Market::default());
     world.insert_resource(TradeLedger::default());
     world.insert_resource(FinanceLedger::default());
+    world.insert_resource(PoliticsLedger::default());
+    world.insert_resource(Diplomacy::default());
+    world.insert_resource(DiplomacyLedger::default());
     world_gen::spawn_world(&mut world);
 
     let mut schedule = systems::build_schedule();
 
-    println!("Project Atlas — Phase 4 simulation (finance · central bank · economy).");
+    println!("Project Atlas — Phase 5 simulation (politics · diplomacy · economy).");
     println!("1 real second = 1 game day. Monthly reports below. Ctrl+C to stop.\n");
 
     loop {
@@ -43,11 +50,19 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::components::{Nation, Pop};
+    use crate::components::{
+        Climate, Government, Ideology, Nation, Pop, Profession, Region, Terrain,
+    };
     use crate::corporation::{Corporation, TradeLedger};
+    use crate::diplomacy::{
+        government_affinity, relation_after, relation_status, Diplomacy, DiplomacyLedger, Relation,
+    };
     use crate::finance::{policy_rate_after, CentralBank, FinanceLedger, RATE_CAP};
+    use crate::politics::{
+        government_aligns, government_for, stability_after, Politics, PoliticsLedger,
+    };
     use crate::production::{base_price, Market};
-    use crate::resources::{GameClock, Good, ResourceStock};
+    use crate::resources::{Deposits, GameClock, Good, ResourceStock};
     use bevy_ecs::prelude::*;
 
     /// Stand up a fully-resourced world ready to tick.
@@ -57,6 +72,9 @@ mod tests {
         world.insert_resource(Market::default());
         world.insert_resource(TradeLedger::default());
         world.insert_resource(FinanceLedger::default());
+        world.insert_resource(PoliticsLedger::default());
+        world.insert_resource(Diplomacy::default());
+        world.insert_resource(DiplomacyLedger::default());
         crate::world_gen::spawn_world(&mut world);
         world
     }
@@ -225,6 +243,164 @@ mod tests {
         assert!(
             dear < cheap,
             "tight money should cool hiring: dear {dear} vs cheap {cheap}"
+        );
+    }
+
+    /// Phase 5: the stability rule leans the right way. A content, well-represented
+    /// nation firms up; a miserable, unrepresented one slides — and stability never
+    /// escapes its [0, 1] band.
+    #[test]
+    fn stability_tracks_happiness_and_support() {
+        let up = stability_after(0.5, 0.9, 0.9);
+        assert!(up > 0.5, "content + represented should firm up, got {up}");
+        let down = stability_after(0.5, 0.0, 0.0);
+        assert!(down < 0.5, "miserable + unrepresented should slide, got {down}");
+        assert!(stability_after(1.0, 1.0, 1.0) <= 1.0, "stability stays capped at 1");
+        assert!(stability_after(0.0, 0.0, 0.0) >= 0.0, "stability never goes negative");
+    }
+
+    /// Phase 5: government legitimacy maps the way the design intends — a democracy
+    /// represents liberals, not militarists — and a triumphant bloc installs the
+    /// matching regime.
+    #[test]
+    fn legitimacy_and_succession_map_correctly() {
+        assert!(government_aligns(Government::Democracy, Ideology::Liberal));
+        assert!(!government_aligns(Government::Democracy, Ideology::Militarist));
+        assert!(government_aligns(Government::Junta, Ideology::Militarist));
+        assert_eq!(government_for(Ideology::Militarist), Government::Junta);
+        assert_eq!(government_for(Ideology::Conservative), Government::Monarchy);
+        assert_eq!(government_for(Ideology::Liberal), Government::Democracy);
+    }
+
+    /// Phase 5: relations reflect both ideology and commerce. Like governments
+    /// start friendly and opposed ones cold; heavy trade thaws even a rivalry; and
+    /// the status thresholds read off the score as designed.
+    #[test]
+    fn relations_reflect_ideology_and_trade() {
+        assert!(
+            government_affinity(Government::Democracy, Government::Democracy)
+                > government_affinity(Government::Democracy, Government::Junta),
+            "like systems should trust each other more than opposed ones"
+        );
+        // From cold, a heavy commercial tie pulls the relation up faster than no trade.
+        let cold = government_affinity(Government::Democracy, Government::Junta);
+        let with_trade = relation_after(0.0, cold, 100_000.0);
+        let without = relation_after(0.0, cold, 0.0);
+        assert!(with_trade > without, "commerce should warm relations: {with_trade} vs {without}");
+        assert_eq!(relation_status(0.8), Relation::Ally);
+        assert_eq!(relation_status(0.2), Relation::Neutral);
+        assert_eq!(relation_status(-0.9), Relation::Hostile);
+    }
+
+    /// Phase 5: the live world stays politically coherent. After a year every
+    /// nation's stability sits in [0, 1], the relation web is populated, and
+    /// diplomacy has moved prestige off zero somewhere.
+    #[test]
+    fn world_stays_politically_coherent() {
+        let mut world = new_world();
+        let mut schedule = crate::systems::build_schedule();
+        for _ in 0..360 {
+            schedule.run(&mut world);
+        }
+
+        let mut q = world.query::<&Nation>();
+        for n in q.iter(&world) {
+            assert!(
+                (0.0..=1.0).contains(&n.stability),
+                "stability out of band: {}",
+                n.stability
+            );
+        }
+
+        let diplo = world.resource::<Diplomacy>();
+        // Three nations → three pairs, all scored by the diplomacy system.
+        assert_eq!(diplo.relations.len(), 3, "every nation pair should have a relation");
+
+        let pol = world.resource::<PoliticsLedger>();
+        assert!(
+            pol.avg_stability > 0.0 && pol.avg_stability <= 1.0,
+            "politics ledger should report a sane average stability: {}",
+            pol.avg_stability
+        );
+
+        let moved_prestige = {
+            let mut q = world.query::<&Nation>();
+            q.iter(&world).any(|n| n.prestige != 0.0)
+        };
+        assert!(moved_prestige, "diplomacy should move prestige off zero");
+    }
+
+    /// Phase 5: sustained misery topples a government. A democracy whose people are
+    /// starving (no food) and entirely unrepresented (all conservatives) loses
+    /// stability month after month until the largest bloc seizes power — here the
+    /// conservatives, who install a monarchy (design §13).
+    #[test]
+    fn sustained_misery_topples_the_government() {
+        let mut world = World::new();
+        world.insert_resource(GameClock::default());
+        world.insert_resource(Market::default());
+        world.insert_resource(TradeLedger::default());
+        world.insert_resource(FinanceLedger::default());
+        world.insert_resource(PoliticsLedger::default());
+        world.insert_resource(Diplomacy::default());
+        world.insert_resource(DiplomacyLedger::default());
+
+        let nation = world
+            .spawn((
+                Nation {
+                    name: "Faltering Republic".to_string(),
+                    treasury: 1_000.0,
+                    debt: 0.0,
+                    inflation: 0.02,
+                    stability: 0.7,
+                    prestige: 0.0,
+                    technology: 1.0,
+                    government: Government::Democracy,
+                    exports: 0.0,
+                    imports: 0.0,
+                },
+                CentralBank::seed(1_000.0),
+                Politics::seed(),
+            ))
+            .id();
+
+        // A single region with no farmland and no deposits: nothing to eat, nothing
+        // to mine. Pops are all conservatives, so a democracy never represents them.
+        let region = world
+            .spawn((
+                Region {
+                    name: "Hinterland".to_string(),
+                    terrain: Terrain::Plains,
+                    climate: Climate::Temperate,
+                    infrastructure: 0.5,
+                    owner: nation,
+                },
+                ResourceStock::default(),
+                Deposits::default(),
+            ))
+            .id();
+        for _ in 0..3 {
+            world.spawn(Pop {
+                size: 100_000,
+                profession: Profession::Laborer,
+                wealth: 1.0,
+                literacy: 0.6,
+                happiness: 0.6,
+                ideology: Ideology::Conservative,
+                region,
+            });
+        }
+
+        let mut schedule = crate::systems::build_schedule();
+        for _ in 0..180 {
+            schedule.run(&mut world);
+        }
+
+        let gov = world.get::<Nation>(nation).unwrap().government;
+        assert_eq!(
+            gov,
+            Government::Monarchy,
+            "starving, unrepresented people should overthrow the republic for a conservative monarchy, got {gov:?}"
         );
     }
 }

@@ -5,6 +5,7 @@
 use crate::components::*;
 use crate::corporation::Corporation;
 use crate::finance::CentralBank;
+use crate::politics::Politics;
 use crate::resources::{Deposits, Good, ResourceStock};
 use bevy_ecs::prelude::*;
 
@@ -74,6 +75,8 @@ fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f
             },
             // Phase 4: each nation runs its own central bank (design §11).
             CentralBank::seed(treasury),
+            // Phase 5: each nation carries its political state (design §13).
+            Politics::seed(),
         ))
         .id()
 }

@@ -29,8 +29,8 @@ db/        PostgreSQL schema + migrations
 1. ~~Phase 1 — Region, Nation, POP, Resources~~ ✅
 2. ~~Phase 2 — Production, Market, Prices~~ ✅
 3. ~~Phase 3 — Corporation AI, Trade~~ ✅
-4. **Phase 4** — Finance, Central Bank  ← *current*
-5. Phase 5 — Politics, Diplomacy
+4. ~~Phase 4 — Finance, Central Bank~~ ✅
+5. **Phase 5** — Politics, Diplomacy  ← *current*
 6. Phase 6 — War
 7. Phase 7 — Nation AI
 
@@ -92,12 +92,41 @@ stable money, ~0 inflation, rates cut to the floor — while thin-industry Khore
 can't cover welfare, monetises the deficit, and its central bank hikes rates near
 11% to fight the resulting inflation.
 
+### Phase 5 — Politics & Diplomacy
+
+- **Legitimacy & stability** — each government represents some ideologies and not
+  others (design §13); the share of the population it represents is its *support*.
+  Stability eases monthly toward how content the people are (happiness) and how
+  well they are represented (support).
+- **Unrest & revolution** — low stability is open unrest (strikes, riots). When it
+  stays deep for several months the largest ideological bloc seizes power — a
+  revolution or coup that installs its own government (conservatives crown a
+  monarch, militarists raise a junta, …) and resets stability at a honeymoon level.
+- **Politics → economy** — unrest erodes tax compliance, so an unstable state
+  collects less, borrows more and (via Phase 4) inflates — which depresses
+  happiness and feeds the unrest. The political and monetary loops are coupled.
+- **Diplomacy** — every nation pair holds a relation that eases toward government
+  compatibility plus a *commercial-peace* bonus from how much the two trade
+  (design §14): heavy commerce can thaw even an ideological rivalry. The score maps
+  to a status — ally, neutral, rival, hostile.
+- **Diplomacy → politics** — a friendly neighbourhood lifts a nation's prestige and
+  steadies its regime; hostility erodes both, feeding back into §13 stability.
+
+Emergent so far: Aurelia's liberal democracy represents its people and stays calm;
+Khoresan's autocracy sits on a poorer, inflation-bitten populace, so unrest runs
+hot and a coup is never far off. Commerce binds the two industrial powers (Aurelia,
+Nordheim) into an alliance across the democracy/monarchy divide, while the
+ideological gulf leaves Aurelia and Khoresan rivals.
+
+Deferred from design §13–§14 (post-MVP): organised parties and elections, explicit
+treaties/tariffs/sanctions as player actions, alliance blocs.
+
 ## Run
 
 ```bash
 cd backend
 cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance
-cargo test     # headless checks: world coherence + production/prices + firms/trade + finance
+cargo test     # headless checks: world coherence + production/prices + firms/trade + finance + politics/diplomacy
 
 cd ../frontend
 npm install

@@ -16,7 +16,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Project Atlas</h1>
-        <span className="subtitle">Phase 4 · Finance · Central Bank</span>
+        <span className="subtitle">Phase 5 · Politics · Diplomacy</span>
         <span className="stat">World population {totalPop.toLocaleString()}</span>
       </header>
 
@@ -79,6 +79,38 @@ export default function App() {
             <span className={`corp-capital ${f.debt > 0 ? "loss" : "profit"}`}>
               {f.debt > 0 ? `−${f.debt.toLocaleString()}` : "—"}
             </span>
+          </div>
+        ))}
+
+        <h2 className="panel-title">Politics</h2>
+        {sampleWorld.politics.map((p) => (
+          <div key={p.nationId} className="corp-row">
+            <span className="swatch" style={{ background: swatch(p.nationId) }} title={p.nationId} />
+            <span className="corp-name">
+              {nationName(p.nationId)}
+              <span className="corp-industries">{p.government}</span>
+            </span>
+            <span className="stability">
+              <span className="stability-track">
+                <span
+                  className={`stability-fill ${p.unrest > 0.6 ? "low" : p.unrest > 0.4 ? "mid" : "high"}`}
+                  style={{ width: `${Math.round(p.stability * 100)}%` }}
+                />
+              </span>
+              {Math.round(p.stability * 100)}%
+            </span>
+          </div>
+        ))}
+
+        <h2 className="panel-title">Diplomacy</h2>
+        {sampleWorld.relations.map((r) => (
+          <div key={`${r.a}-${r.b}`} className="rel-row">
+            <span className="rel-pair">
+              <span className="swatch swatch-sm" style={{ background: swatch(r.a) }} title={r.a} />
+              {nationName(r.a)} · {nationName(r.b)}
+              <span className="swatch swatch-sm" style={{ background: swatch(r.b) }} title={r.b} />
+            </span>
+            <span className={`rel-status rel-${r.status}`}>{r.status}</span>
           </div>
         ))}
       </aside>
