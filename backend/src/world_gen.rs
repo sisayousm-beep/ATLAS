@@ -7,6 +7,7 @@ use crate::corporation::Corporation;
 use crate::finance::CentralBank;
 use crate::politics::Politics;
 use crate::resources::{Deposits, Good, ResourceStock};
+use crate::war::Military;
 use bevy_ecs::prelude::*;
 
 struct PopSeed {
@@ -77,6 +78,8 @@ fn nation(world: &mut World, name: &str, treasury: f64, gov: Government, tech: f
             CentralBank::seed(treasury),
             // Phase 5: each nation carries its political state (design §13).
             Politics::seed(),
+            // Phase 6: each nation fields a military, armed from the economy (§15).
+            Military::seed(),
         ))
         .id()
 }
@@ -122,6 +125,7 @@ pub fn spawn_world(world: &mut World) {
             PopSeed { size: 60_000, profession: Laborer, wealth: 1.2, literacy: 0.7, ideology: Progressive },
             PopSeed { size: 25_000, profession: Engineer, wealth: 3.5, literacy: 0.9, ideology: Liberal },
             PopSeed { size: 15_000, profession: Merchant, wealth: 3.0, literacy: 0.9, ideology: Conservative },
+            PopSeed { size: 12_000, profession: Soldier, wealth: 1.8, literacy: 0.8, ideology: Militarist },
         ],
     );
     let port_vesper = spawn_region(
@@ -187,6 +191,7 @@ pub fn spawn_world(world: &mut World) {
             PopSeed { size: 85_000, profession: Laborer, wealth: 1.6, literacy: 0.82, ideology: Socialist },
             PopSeed { size: 30_000, profession: Engineer, wealth: 4.2, literacy: 0.95, ideology: Progressive },
             PopSeed { size: 25_000, profession: Researcher, wealth: 3.5, literacy: 0.97, ideology: Progressive },
+            PopSeed { size: 15_000, profession: Soldier, wealth: 2.0, literacy: 0.85, ideology: Militarist },
         ],
     );
 

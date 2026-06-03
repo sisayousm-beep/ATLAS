@@ -68,4 +68,14 @@ export const sampleWorld: WorldView = {
     { a: "khoresan", b: "nordheim", status: "neutral", score: 0.34 },
     { a: "aurelia", b: "khoresan", status: "rival", score: -0.18 },
   ],
+  // Phase 6, near the year-1 sim state. Each nation arms from its economy, so the
+  // surplus-rich industrial powers field the strongest militaries while broke
+  // Khoresan can barely fund one. No one is at war: the rivalry is cold and no
+  // aggressor holds a decisive enough edge — commerce keeps the peace (design §15).
+  military: [
+    { nationId: "aurelia", power: 405, strength: 150, exhaustion: 0, atWar: false },
+    { nationId: "khoresan", power: 137, strength: 5, exhaustion: 0, atWar: false },
+    { nationId: "nordheim", power: 432, strength: 120, exhaustion: 0, atWar: false },
+  ],
+  wars: [],
 };

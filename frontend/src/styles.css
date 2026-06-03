@@ -261,3 +261,33 @@ body {
 .rel-hostile {
   color: #e0686d;
 }
+
+/* Military · War: army power per nation, and a peace/war banner. */
+.war-peace {
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #12203a;
+  color: #7fa6d9;
+  font-size: 12px;
+}
+
+.war-banner {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #3a1622;
+  color: #f0a0aa;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mil-power {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #b9c0e0;
+}
+.mil-power.at-war {
+  color: #e0686d;
+  font-weight: 600;
+}

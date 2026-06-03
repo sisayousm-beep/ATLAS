@@ -30,8 +30,8 @@ db/        PostgreSQL schema + migrations
 2. ~~Phase 2 — Production, Market, Prices~~ ✅
 3. ~~Phase 3 — Corporation AI, Trade~~ ✅
 4. ~~Phase 4 — Finance, Central Bank~~ ✅
-5. **Phase 5** — Politics, Diplomacy  ← *current*
-6. Phase 6 — War
+5. ~~Phase 5 — Politics, Diplomacy~~ ✅
+6. **Phase 6** — War  ← *current*
 7. Phase 7 — Nation AI
 
 ### Phase 2 — Production & Market
@@ -121,12 +121,38 @@ ideological gulf leaves Aurelia and Khoresan rivals.
 Deferred from design §13–§14 (post-MVP): organised parties and elections, explicit
 treaties/tariffs/sanctions as player actions, alliance blocs.
 
+### Phase 6 — War
+
+War is the *extension* of the economy, not its purpose (design §2, §15):
+
+- **Military from the economy** — each nation funds a standing army out of its
+  treasury (산업력·경제력); the spending buys *strength*, eroded by peacetime upkeep.
+  A nation's combat *power* is that strength plus the manpower of its soldier pops
+  (병력), scaled by technology (기술력) and degraded by war exhaustion (보급·사기).
+  A broke nation cannot arm — guns rest on butter.
+- **Who fights** — only the militant reach for the sword (juntas above autocracies
+  above monarchies above democracies), and only against a rival they already loathe
+  and decisively out-power. Commerce-bound powers stay at peace.
+- **Prosecution** — fighting grinds both armies down by attrition, burns treasury
+  the state must often borrow (so war prints money and shows up as inflation — Phase
+  4), and wears out the home front. A spent or hopeless side sues for peace.
+- **Settlement** — the victor takes prestige and reparations; the loser's standing
+  and regime stability are dragged down (§15 → §13).
+- **War cuts commerce** — while it lasts, trade between belligerents is embargoed
+  (Phase 3) and their relation is frozen at its wartime low (Phase 5).
+
+Emergent so far: the surplus-rich industrial powers (Aurelia, Nordheim) field the
+strongest militaries while broke Khoresan can barely fund one — and, true to the
+design, the world mostly stays at peace: the rivalry between Aurelia and Khoresan is
+cold but no aggressor holds a decisive enough edge, so commerce keeps the guns
+holstered. War is a tool of last resort the economy rarely affords.
+
 ## Run
 
 ```bash
 cd backend
-cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance
-cargo test     # headless checks: world coherence + production/prices + firms/trade + finance + politics/diplomacy
+cargo run      # real-time sim: 1s = 1 day; monthly reports: nations, prices, firms, trade, finance, politics, military
+cargo test     # headless checks: world coherence + production/prices + firms/trade + finance + politics/diplomacy + war
 
 cd ../frontend
 npm install

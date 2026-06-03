@@ -15,6 +15,7 @@ mod politics;
 mod production;
 mod resources;
 mod systems;
+mod war;
 mod world_gen;
 
 use bevy_ecs::prelude::*;
@@ -25,6 +26,7 @@ use politics::PoliticsLedger;
 use production::Market;
 use resources::GameClock;
 use std::{thread, time::Duration};
+use war::{Warfront, WarLedger};
 
 fn main() {
     let mut world = World::new();
@@ -35,11 +37,13 @@ fn main() {
     world.insert_resource(PoliticsLedger::default());
     world.insert_resource(Diplomacy::default());
     world.insert_resource(DiplomacyLedger::default());
+    world.insert_resource(Warfront::default());
+    world.insert_resource(WarLedger::default());
     world_gen::spawn_world(&mut world);
 
     let mut schedule = systems::build_schedule();
 
-    println!("Project Atlas — Phase 5 simulation (politics · diplomacy · economy).");
+    println!("Project Atlas — Phase 6 simulation (war as the extension of the economy).");
     println!("1 real second = 1 game day. Monthly reports below. Ctrl+C to stop.\n");
 
     loop {
@@ -63,6 +67,10 @@ mod tests {
     };
     use crate::production::{base_price, Market};
     use crate::resources::{Deposits, GameClock, Good, ResourceStock};
+    use crate::war::{
+        attrition, military_power, strength_after, war_appetite, wants_peace, Military, WarLedger,
+        Warfront, PEACE_EXHAUSTION,
+    };
     use bevy_ecs::prelude::*;
 
     /// Stand up a fully-resourced world ready to tick.
@@ -75,6 +83,8 @@ mod tests {
         world.insert_resource(PoliticsLedger::default());
         world.insert_resource(Diplomacy::default());
         world.insert_resource(DiplomacyLedger::default());
+        world.insert_resource(Warfront::default());
+        world.insert_resource(WarLedger::default());
         crate::world_gen::spawn_world(&mut world);
         world
     }
@@ -344,6 +354,8 @@ mod tests {
         world.insert_resource(PoliticsLedger::default());
         world.insert_resource(Diplomacy::default());
         world.insert_resource(DiplomacyLedger::default());
+        world.insert_resource(Warfront::default());
+        world.insert_resource(WarLedger::default());
 
         let nation = world
             .spawn((
@@ -401,6 +413,112 @@ mod tests {
             gov,
             Government::Monarchy,
             "starving, unrepresented people should overthrow the republic for a conservative monarchy, got {gov:?}"
+        );
+    }
+
+    /// Phase 6: combat power pays the design's cost factors (병력·산업력·기술력·보급).
+    /// More strength, more troops and higher tech each lift it; exhaustion saps it;
+    /// it never goes negative.
+    #[test]
+    fn military_power_reflects_its_factors() {
+        let base = military_power(100.0, 1_000.0, 1.0, 0.0);
+        assert!(military_power(200.0, 1_000.0, 1.0, 0.0) > base, "more strength → more power");
+        assert!(military_power(100.0, 5_000.0, 1.0, 0.0) > base, "more troops → more power");
+        assert!(military_power(100.0, 1_000.0, 2.0, 0.0) > base, "higher tech → more power");
+        assert!(military_power(100.0, 1_000.0, 1.0, 0.5) < base, "exhaustion saps power");
+        assert!(military_power(0.0, 0.0, 1.0, 1.0) >= 0.0, "power never goes negative");
+    }
+
+    /// Phase 6: only the militant reach for the sword — juntas above autocracies
+    /// above monarchies above democracies (design §15).
+    #[test]
+    fn war_appetite_orders_governments() {
+        assert!(war_appetite(Government::Junta) > war_appetite(Government::Autocracy));
+        assert!(war_appetite(Government::Autocracy) > war_appetite(Government::Monarchy));
+        assert!(war_appetite(Government::Monarchy) > war_appetite(Government::Democracy));
+    }
+
+    /// Phase 6: the pure war rules behave. Spending builds strength net of upkeep,
+    /// attrition costs more against a stronger foe, and a nation sues for peace once
+    /// it is worn out or hopelessly outmatched — but fights on when fresh and even.
+    #[test]
+    fn war_rules_are_sane() {
+        assert!(strength_after(100.0, 1_000.0) > 100.0, "spending should build strength");
+        assert!(strength_after(100.0, 0.0) < 100.0, "idle armies decay to upkeep");
+
+        let light = attrition(100.0, 100.0, 50.0);
+        let heavy = attrition(100.0, 100.0, 400.0);
+        assert!(heavy > light && light > 0.0, "a tougher foe inflicts more: {light} vs {heavy}");
+
+        assert!(wants_peace(PEACE_EXHAUSTION, 100.0, 100.0), "the exhausted sue for peace");
+        assert!(wants_peace(0.0, 10.0, 100.0), "the hopeless sue for peace");
+        assert!(!wants_peace(0.1, 100.0, 100.0), "a fresh, even nation fights on");
+    }
+
+    /// Phase 6: a full war is fought and settled (design §15). A militant, powerful
+    /// autocracy and a weak democracy are set at each other's throats; the autocracy
+    /// wins, taking prestige and reparations, while the loser's standing and treasury
+    /// are dragged down — war as the violent extension of the economy.
+    #[test]
+    fn a_war_is_fought_and_settled() {
+        let mut world = World::new();
+        world.insert_resource(GameClock::default());
+        world.insert_resource(Market::default());
+        world.insert_resource(TradeLedger::default());
+        world.insert_resource(FinanceLedger::default());
+        world.insert_resource(PoliticsLedger::default());
+        world.insert_resource(Diplomacy::default());
+        world.insert_resource(DiplomacyLedger::default());
+        world.insert_resource(Warfront::default());
+        world.insert_resource(WarLedger::default());
+
+        let nation = |world: &mut World, name: &str, gov: Government, strength: f64| {
+            world
+                .spawn((
+                    Nation {
+                        name: name.to_string(),
+                        treasury: 5_000.0,
+                        debt: 0.0,
+                        inflation: 0.02,
+                        stability: 0.7,
+                        prestige: 0.0,
+                        technology: 1.0,
+                        government: gov,
+                        exports: 0.0,
+                        imports: 0.0,
+                    },
+                    CentralBank::seed(5_000.0),
+                    Politics::seed(),
+                    Military { strength, exhaustion: 0.0 },
+                ))
+                .id()
+        };
+        let aggressor = nation(&mut world, "Hegemon", Government::Autocracy, 600.0);
+        let defender = nation(&mut world, "Pacifica", Government::Democracy, 200.0);
+
+        // Set the pair openly hostile so the autocracy has a casus belli.
+        world
+            .resource_mut::<Diplomacy>()
+            .relations
+            .insert(Diplomacy::pair(aggressor, defender), -0.9);
+
+        let mut schedule = crate::systems::build_schedule();
+        for _ in 0..240 {
+            schedule.run(&mut world);
+        }
+
+        let agg_prestige = world.get::<Nation>(aggressor).unwrap().prestige;
+        let def = world.get::<Nation>(defender).unwrap();
+        assert!(
+            agg_prestige > def.prestige,
+            "the victor should out-rank the vanquished: {agg_prestige} vs {}",
+            def.prestige
+        );
+        assert!(def.prestige < 0.0, "the defeated should lose standing, got {}", def.prestige);
+        assert!(
+            def.treasury < 5_000.0,
+            "war and reparations should drain the loser, got {}",
+            def.treasury
         );
     }
 }

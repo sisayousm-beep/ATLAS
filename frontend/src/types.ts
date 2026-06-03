@@ -75,6 +75,26 @@ export interface RelationView {
   score: number;
 }
 
+export interface MilitaryView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Effective combat power: strength + troops, scaled by tech, sapped by exhaustion. */
+  power: number;
+  /** Standing military strength, bought from the economy. */
+  strength: number;
+  /** War exhaustion, 0 (fresh) .. 1 (spent). */
+  exhaustion: number;
+  /** Whether the nation is currently fighting a war. */
+  atWar: boolean;
+}
+
+export interface WarView {
+  /** The nation that declared the war (matches `NationView.id`). */
+  aggressor: string;
+  /** The nation defending (matches `NationView.id`). */
+  defender: string;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
@@ -90,4 +110,8 @@ export interface WorldView {
   politics: PoliticsView[];
   /** Pairwise relations between nations (Phase 5, §14). */
   relations: RelationView[];
+  /** Per-nation armed forces: power, strength, exhaustion (Phase 6, §15). */
+  military: MilitaryView[];
+  /** Active wars between nations (Phase 6, §15). Empty when the world is at peace. */
+  wars: WarView[];
 }

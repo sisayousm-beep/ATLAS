@@ -10,6 +10,7 @@ use crate::finance::*;
 use crate::politics::*;
 use crate::production::*;
 use crate::resources::*;
+use crate::war::*;
 use bevy_ecs::prelude::*;
 use std::collections::HashMap;
 
@@ -74,6 +75,8 @@ pub fn build_schedule() -> Schedule {
             collect_taxes,
             corporate_decisions,
             government_finance,
+            military_buildup,
+            warfare,
             update_inflation,
             monetary_policy,
             finance_oversight,
@@ -156,6 +159,7 @@ pub fn trade_goods(
     market: Res<Market>,
     mut ledger: ResMut<TradeLedger>,
     mut diplo: ResMut<Diplomacy>,
+    wars: Res<Warfront>,
 ) {
     /// A region's standing for one good during the clearing pass.
     struct Node {
@@ -189,20 +193,30 @@ pub fn trade_goods(
         // Greedily match the biggest surplus with the biggest deficit. One pass
         // settles at most one pair, so cap passes at the region count.
         for _ in 0..nodes.len() {
+            // Biggest surplus region.
             let mut sell = None;
-            let mut buy = None;
-            let (mut best_sur, mut best_def) = (TRADE_EPS, TRADE_EPS);
+            let mut best_sur = TRADE_EPS;
             for (i, n) in nodes.iter().enumerate() {
                 if n.stock - target > best_sur {
                     best_sur = n.stock - target;
                     sell = Some(i);
+                }
+            }
+            let Some(s) = sell else { break };
+            // Biggest deficit it may legally supply: a wartime embargo blocks any
+            // flow between belligerents, so goods route around enemies (design §15).
+            let mut buy = None;
+            let mut best_def = TRADE_EPS;
+            for (i, n) in nodes.iter().enumerate() {
+                if i == s || wars.at_war(nodes[s].owner, n.owner) {
+                    continue;
                 }
                 if target - n.stock > best_def {
                     best_def = target - n.stock;
                     buy = Some(i);
                 }
             }
-            let (Some(s), Some(d)) = (sell, buy) else { break };
+            let Some(d) = buy else { break };
 
             let cap = target * TRADE_CAP * nodes[s].infra.min(nodes[d].infra);
             let qty = (nodes[s].stock - target)
@@ -505,6 +519,7 @@ pub fn diplomacy(
     mut nations: Query<(Entity, &mut Nation)>,
     mut diplo: ResMut<Diplomacy>,
     mut ledger: ResMut<DiplomacyLedger>,
+    wars: Res<Warfront>,
 ) {
     if !clock.is_month_start() {
         return;
@@ -523,7 +538,13 @@ pub fn diplomacy(
             let key = Diplomacy::pair(a, b);
             let trade_value = trade.get(&key).copied().unwrap_or(0.0);
             let current = *diplo.relations.get(&key).unwrap_or(&0.0);
-            let next = relation_after(current, government_affinity(ga, gb), trade_value);
+            // A war freezes the relation at its wartime low; otherwise it eases
+            // toward government affinity plus the commercial-peace bonus.
+            let next = if wars.at_war(a, b) {
+                current
+            } else {
+                relation_after(current, government_affinity(ga, gb), trade_value)
+            };
             diplo.relations.insert(key, next);
             match relation_status(next) {
                 Relation::Ally => allies += 1,
@@ -651,6 +672,190 @@ pub fn government_finance(
     }
 }
 
+/// Military build-up (design §15), run monthly. Each nation funds its standing
+/// army out of the treasury (경제력→산업력→무기); the spending buys strength, then
+/// peacetime upkeep takes its cut. A broke nation can't arm — military power rests
+/// on the economy, exactly as the design intends.
+pub fn military_buildup(clock: Res<GameClock>, mut nations: Query<(&mut Nation, &mut Military)>) {
+    if !clock.is_month_start() {
+        return;
+    }
+    for (mut nation, mut mil) in &mut nations {
+        let spend = (nation.treasury * MILITARY_BUDGET_SHARE).max(0.0);
+        nation.treasury -= spend;
+        mil.strength = strength_after(mil.strength, spend);
+    }
+}
+
+/// War (design §15), run monthly — the extension of the economy, never its point.
+/// A militant nation with a decisive power edge over a rival strikes; the fighting
+/// then grinds both armies down, burns treasury the state must often borrow
+/// (Phase 4), and wears out the home front, until a spent or hopeless side sues for
+/// peace. The victor takes reparations and prestige; the loser's regime is shaken
+/// (Phase 5). While it lasts, trade between belligerents is embargoed (Phase 3) and
+/// their relation is frozen cold.
+pub fn warfare(
+    clock: Res<GameClock>,
+    mut nations: Query<(Entity, &mut Nation, &mut Military, &mut CentralBank)>,
+    regions: Query<&Region>,
+    pops: Query<&Pop>,
+    mut diplo: ResMut<Diplomacy>,
+    mut wars: ResMut<Warfront>,
+    mut ledger: ResMut<WarLedger>,
+) {
+    if !clock.is_month_start() {
+        return;
+    }
+    ledger.wars_started = 0;
+    ledger.wars_ended = 0;
+
+    // Soldier manpower per nation (병력), via region ownership.
+    let mut soldiers: HashMap<Entity, f64> = HashMap::new();
+    for pop in &pops {
+        if pop.profession == Profession::Soldier {
+            if let Ok(region) = regions.get(pop.region) {
+                *soldiers.entry(region.owner).or_default() += pop.size as f64;
+            }
+        }
+    }
+
+    // Snapshot the war-relevant state so both sides of a war can be read at once,
+    // then write the results back at the end.
+    struct Snap {
+        strength: f64,
+        exhaustion: f64,
+        treasury: f64,
+        debt: f64,
+        money: f64,
+        prestige: f64,
+        stability: f64,
+        technology: f64,
+        gov: Government,
+        soldiers: f64,
+    }
+    let mut snap: HashMap<Entity, Snap> = HashMap::new();
+    for (e, n, m, b) in &nations {
+        snap.insert(
+            e,
+            Snap {
+                strength: m.strength,
+                exhaustion: m.exhaustion,
+                treasury: n.treasury,
+                debt: n.debt,
+                money: b.money_supply,
+                prestige: n.prestige,
+                stability: n.stability,
+                technology: n.technology,
+                gov: n.government,
+                soldiers: soldiers.get(&e).copied().unwrap_or(0.0),
+            },
+        );
+    }
+    let power = |s: &Snap| military_power(s.strength, s.soldiers, s.technology, s.exhaustion);
+
+    // 1. Ignition — a militant nation with a decisive edge over a rival strikes.
+    let ids: Vec<Entity> = snap.keys().copied().collect();
+    for i in 0..ids.len() {
+        for j in (i + 1)..ids.len() {
+            let (a, b) = (ids[i], ids[j]);
+            if wars.at_war(a, b) || diplo.relation(a, b) > WAR_RELATION {
+                continue;
+            }
+            let (pa, pb) = (power(&snap[&a]), power(&snap[&b]));
+            // The keener government is the would-be aggressor.
+            let (aggressor, defender, ap, dp) = if war_appetite(snap[&a].gov) >= war_appetite(snap[&b].gov) {
+                (a, b, pa, pb)
+            } else {
+                (b, a, pb, pa)
+            };
+            if war_appetite(snap[&aggressor].gov) >= WAR_APPETITE_MIN && ap >= dp * WAR_POWER_EDGE {
+                wars.wars.push(War { aggressor, defender, months: 0, score: 0.0 });
+                diplo.relations.insert(Diplomacy::pair(a, b), WAR_DECLARE_RELATION);
+                ledger.wars_started += 1;
+            }
+        }
+    }
+
+    // 2. Prosecution — grind strength, burn (or borrow) treasury, tire the front.
+    for war in &mut wars.wars {
+        let (pa, pd) = (power(&snap[&war.aggressor]), power(&snap[&war.defender]));
+        war.months += 1;
+        war.score += pa - pd;
+        for (who, own_p, enemy_p) in [(war.aggressor, pa, pd), (war.defender, pd, pa)] {
+            let s = snap.get_mut(&who).unwrap();
+            s.strength = (s.strength - attrition(s.strength, own_p, enemy_p)).max(0.0);
+            s.exhaustion = (s.exhaustion + EXHAUSTION_GAIN).min(1.0);
+            // What the treasury can't cover is borrowed — the bank prints it, so
+            // debt and money both grow (Phase 4), and war shows up as inflation.
+            let cost = WAR_COST_PER_POWER * own_p;
+            if s.treasury >= cost {
+                s.treasury -= cost;
+            } else {
+                let gap = cost - s.treasury;
+                s.treasury = 0.0;
+                s.debt += gap;
+                s.money += gap;
+            }
+        }
+    }
+
+    // 3. Resolution — a spent or hopeless side settles; the score names the victor.
+    let mut ended: Vec<usize> = Vec::new();
+    for (idx, war) in wars.wars.iter().enumerate() {
+        let (pa, pd) = (power(&snap[&war.aggressor]), power(&snap[&war.defender]));
+        let peace = wants_peace(snap[&war.aggressor].exhaustion, pa, pd)
+            || wants_peace(snap[&war.defender].exhaustion, pd, pa);
+        if !peace {
+            continue;
+        }
+        // White peace if neither side gained the upper hand.
+        if war.score.abs() > f64::EPSILON {
+            let (winner, loser) = if war.score > 0.0 {
+                (war.aggressor, war.defender)
+            } else {
+                (war.defender, war.aggressor)
+            };
+            let reparation = snap[&loser].treasury * REPARATION_SHARE;
+            let l = snap.get_mut(&loser).unwrap();
+            l.treasury -= reparation;
+            l.prestige -= WAR_PRESTIGE;
+            l.stability = (l.stability - DEFEAT_STABILITY).max(0.0);
+            let w = snap.get_mut(&winner).unwrap();
+            w.treasury += reparation;
+            w.prestige += WAR_PRESTIGE;
+        }
+        ended.push(idx);
+    }
+    for &idx in ended.iter().rev() {
+        wars.wars.remove(idx);
+    }
+    ledger.wars_ended += ended.len() as u32;
+
+    // 4. Home front — belligerents bleed stability to war-weariness; nations at
+    //    peace slowly recover from exhaustion.
+    for (&e, s) in snap.iter_mut() {
+        if wars.belligerent(e) {
+            s.stability = (s.stability - s.exhaustion * WAR_STABILITY_DRAG).max(0.0);
+        } else {
+            s.exhaustion = (s.exhaustion - EXHAUSTION_EASE).max(0.0);
+        }
+    }
+    ledger.active_wars = wars.wars.len() as u32;
+
+    // Write the snapshot back into the world.
+    for (e, mut n, mut m, mut b) in &mut nations {
+        if let Some(s) = snap.get(&e) {
+            n.treasury = s.treasury;
+            n.debt = s.debt;
+            n.prestige = s.prestige;
+            n.stability = s.stability.clamp(0.0, 1.0);
+            m.strength = s.strength;
+            m.exhaustion = s.exhaustion;
+            b.money_supply = s.money;
+        }
+    }
+}
+
 /// Inflation is no longer fixed (design §11): each month it eases toward this
 /// month's monetary growth — the new money the bank printed to cover deficits.
 /// Stable money settles toward zero inflation; monetising a deficit shows up as
@@ -719,7 +924,9 @@ pub fn report(
     finance: Res<FinanceLedger>,
     politics_led: Res<PoliticsLedger>,
     diplo_led: Res<DiplomacyLedger>,
-    nations: Query<(Entity, &Nation, &CentralBank, &Politics)>,
+    war_led: Res<WarLedger>,
+    wars: Res<Warfront>,
+    nations: Query<(Entity, &Nation, &CentralBank, &Politics, &Military)>,
     regions: Query<(&Region, &ResourceStock)>,
     pops: Query<&Pop>,
     corps: Query<&Corporation>,
@@ -733,6 +940,7 @@ pub fn report(
     let mut grain: HashMap<Entity, f64> = HashMap::new();
     let mut happiness_sum: HashMap<Entity, f64> = HashMap::new();
     let mut happiness_weight: HashMap<Entity, f64> = HashMap::new();
+    let mut soldiers: HashMap<Entity, f64> = HashMap::new();
 
     for (region, stock) in &regions {
         *grain.entry(region.owner).or_default() += stock.get(Good::Grain);
@@ -743,6 +951,9 @@ pub fn report(
             *population.entry(owner).or_default() += pop.size as u64;
             *happiness_sum.entry(owner).or_default() += pop.happiness * pop.size as f64;
             *happiness_weight.entry(owner).or_default() += pop.size as f64;
+            if pop.profession == Profession::Soldier {
+                *soldiers.entry(owner).or_default() += pop.size as f64;
+            }
         }
     }
 
@@ -752,7 +963,7 @@ pub fn report(
         clock.month(),
         clock.day
     );
-    for (entity, nation, bank, politics) in &nations {
+    for (entity, nation, bank, politics, military) in &nations {
         let pop = population.get(&entity).copied().unwrap_or(0);
         let g = grain.get(&entity).copied().unwrap_or(0.0);
         let happy = match happiness_weight.get(&entity).copied().unwrap_or(0.0) {
@@ -772,6 +983,13 @@ pub fn report(
             "", nation.government, nation.stability, politics.unrest, nation.prestige,
             if politics.unrest > 1.0 - UNREST_THRESHOLD { "  ⚑ UNREST" } else { "" }
         );
+        let sol = soldiers.get(&entity).copied().unwrap_or(0.0);
+        let power = military_power(military.strength, sol, nation.technology, military.exhaustion);
+        println!(
+            "  {:<12} army power {:>8.0}  strength {:>8.0}  soldiers {:>8.0}  exhaustion {:>4.2}{}",
+            "", power, military.strength, sol, military.exhaustion,
+            if wars.belligerent(entity) { "  ⚔ AT WAR" } else { "" }
+        );
     }
 
     // Market snapshot across the active production chain.
@@ -788,7 +1006,7 @@ pub fn report(
     for corp in &corps {
         let nation = nations
             .get(corp.owner)
-            .map(|(_, n, _, _)| n.name.as_str())
+            .map(|(_, n, _, _, _)| n.name.as_str())
             .unwrap_or("?");
         println!(
             "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
@@ -820,6 +1038,11 @@ pub fn report(
     println!(
         "  diplomacy: allies {}  rivalries {}",
         diplo_led.allies, diplo_led.rivalries
+    );
+    println!(
+        "  war: active {}  started {}  ended {}{}",
+        war_led.active_wars, war_led.wars_started, war_led.wars_ended,
+        if war_led.active_wars > 0 { "  ⚔ WAR" } else { "" }
     );
     println!();
 }

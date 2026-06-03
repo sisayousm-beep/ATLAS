@@ -16,7 +16,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Project Atlas</h1>
-        <span className="subtitle">Phase 5 · Politics · Diplomacy</span>
+        <span className="subtitle">Phase 6 · War</span>
         <span className="stat">World population {totalPop.toLocaleString()}</span>
       </header>
 
@@ -111,6 +111,30 @@ export default function App() {
               <span className="swatch swatch-sm" style={{ background: swatch(r.b) }} title={r.b} />
             </span>
             <span className={`rel-status rel-${r.status}`}>{r.status}</span>
+          </div>
+        ))}
+
+        <h2 className="panel-title">Military · War</h2>
+        {sampleWorld.wars.length > 0 ? (
+          sampleWorld.wars.map((w) => (
+            <div key={`${w.aggressor}-${w.defender}`} className="war-banner">
+              ⚔ {nationName(w.aggressor)} → {nationName(w.defender)}
+            </div>
+          ))
+        ) : (
+          <div className="war-peace">At peace</div>
+        )}
+        {sampleWorld.military.map((m) => (
+          <div key={m.nationId} className="corp-row">
+            <span className="swatch" style={{ background: swatch(m.nationId) }} title={m.nationId} />
+            <span className="corp-name">
+              {nationName(m.nationId)}
+              <span className="corp-industries">strength {m.strength.toLocaleString()}</span>
+            </span>
+            <span className={`mil-power ${m.atWar ? "at-war" : ""}`}>
+              {m.atWar ? "⚔ " : ""}
+              {m.power.toLocaleString()}
+            </span>
           </div>
         ))}
       </aside>
