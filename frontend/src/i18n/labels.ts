@@ -49,7 +49,27 @@ const TIER_KO: Record<string, string> = {
   finished: "완성품",
 };
 
+/** Terrain types — mirrors `Terrain` in backend/src/components.rs. */
+const TERRAIN_KO: Record<string, string> = {
+  Plains: "평원",
+  Hills: "구릉",
+  Mountains: "산악",
+  Coast: "해안",
+  Desert: "사막",
+};
+
+/** Climate types — mirrors `Climate` in backend/src/components.rs. */
+const CLIMATE_KO: Record<string, string> = {
+  Temperate: "온대",
+  Tropical: "열대",
+  Arid: "건조",
+  Continental: "대륙성",
+  Polar: "한대",
+};
+
 export const goodLabel = (g: string): string => GOOD_KO[g] ?? g;
 export const governmentLabel = (g: string): string => GOVERNMENT_KO[g] ?? g;
 export const relationLabel = (s: string): string => RELATION_KO[s] ?? s;
 export const tierLabel = (t: string): string => TIER_KO[t] ?? t;
+export const terrainLabel = (t: string): string => TERRAIN_KO[t] ?? t;
+export const climateLabel = (c: string): string => CLIMATE_KO[c] ?? c;

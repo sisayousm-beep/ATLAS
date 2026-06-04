@@ -11,7 +11,7 @@ use crate::diplomacy::{relation_status, Diplomacy, Relation};
 use crate::finance::{CentralBank, FinanceLedger};
 use crate::politics::Politics;
 use crate::production::{base_price, Market, TRADED};
-use crate::resources::{GameClock, Good};
+use crate::resources::{Deposits, GameClock, Good};
 use crate::war::{military_power, Military, Warfront};
 use bevy_ecs::prelude::*;
 use serde::Serialize;
@@ -41,8 +41,23 @@ pub struct RegionView {
     pub name: String,
     pub nation_id: String,
     pub population: u64,
+    /// Terrain type, e.g. "Plains".
+    pub terrain: String,
+    /// Climate type, e.g. "Temperate".
+    pub climate: String,
+    /// Infrastructure quality, 0..1.
+    pub infrastructure: f64,
+    /// Natural endowment: raw goods the region is rich in, with abundance (design §6).
+    pub resources: Vec<RegionResource>,
     pub x: f64,
     pub y: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct RegionResource {
+    pub good: String,
+    /// Extraction multiplier from the region's deposits.
+    pub abundance: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -169,17 +184,35 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
     let nation_id_of: HashMap<Entity, String> =
         nats.iter().map(|n| (n.e, nation_id(&n.name))).collect();
 
-    // --- regions (name + owner) ---
+    // --- regions (name + owner + terrain/climate/infra + deposits) ---
     struct RegRaw {
         e: Entity,
         name: String,
         owner: Entity,
+        terrain: String,
+        climate: String,
+        infrastructure: f64,
+        resources: Vec<RegionResource>,
     }
     let mut regs: Vec<RegRaw> = Vec::new();
     {
-        let mut q = world.query::<(Entity, &Region)>();
-        for (e, r) in q.iter(world) {
-            regs.push(RegRaw { e, name: r.name.clone(), owner: r.owner });
+        let mut q = world.query::<(Entity, &Region, &Deposits)>();
+        for (e, r, d) in q.iter(world) {
+            let mut resources: Vec<RegionResource> = d
+                .0
+                .iter()
+                .map(|(&g, &abundance)| RegionResource { good: good_label(g), abundance })
+                .collect();
+            resources.sort_by(|a, b| b.abundance.total_cmp(&a.abundance));
+            regs.push(RegRaw {
+                e,
+                name: r.name.clone(),
+                owner: r.owner,
+                terrain: format!("{:?}", r.terrain),
+                climate: format!("{:?}", r.climate),
+                infrastructure: r.infrastructure,
+                resources,
+            });
         }
     }
     let region_owner: HashMap<Entity, Entity> = regs.iter().map(|r| (r.e, r.owner)).collect();
@@ -318,6 +351,10 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 name: r.name.clone(),
                 nation_id: nation_id_of.get(&r.owner).cloned().unwrap_or_default(),
                 population: pop_by_region.get(&r.e).copied().unwrap_or(0),
+                terrain: r.terrain.clone(),
+                climate: r.climate.clone(),
+                infrastructure: r.infrastructure,
+                resources: r.resources.clone(),
                 x,
                 y,
             }

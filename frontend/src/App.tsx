@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useGameStore } from "./store/gameStore";
-import { AtlasMap } from "./map/AtlasMap";
+import { AtlasMap, type Selection } from "./map/AtlasMap";
+import { Inspector } from "./inspect/Inspector";
 import { goodLabel, governmentLabel, relationLabel, tierLabel } from "./i18n/labels";
 
 const SPEEDS = [1, 2, 5];
@@ -13,6 +14,9 @@ export default function App() {
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);
   const setSpeed = useGameStore((s) => s.setSpeed);
+
+  // Phase 3: what the player has selected on the map / legend.
+  const [selection, setSelection] = useState<Selection>(null);
 
   useEffect(() => {
     void init();
@@ -56,20 +60,39 @@ export default function App() {
       </header>
 
       <main className="stage-wrap">
-        <AtlasMap world={world} />
-        <div className="map-hint">스크롤: 확대/축소 · 드래그: 이동</div>
+        <AtlasMap
+          world={world}
+          selected={selection}
+          onSelectRegion={(id) => setSelection({ kind: "region", id })}
+          onSelectNation={(id) => setSelection({ kind: "nation", id })}
+          onClear={() => setSelection(null)}
+        />
+        <div className="map-hint">스크롤: 확대/축소 · 드래그: 이동 · 클릭: 선택</div>
+        <Inspector
+          world={world}
+          selection={selection}
+          onSelectRegion={(id) => setSelection({ kind: "region", id })}
+          onSelectNation={(id) => setSelection({ kind: "nation", id })}
+          onClose={() => setSelection(null)}
+        />
       </main>
 
       <aside className="legend">
         <h2 className="panel-title">국가</h2>
         {world.nations.map((n) => (
-          <div key={n.id} className="legend-row">
+          <button
+            key={n.id}
+            className={`legend-row legend-nation ${
+              selection?.kind === "nation" && selection.id === n.id ? "active" : ""
+            }`}
+            onClick={() => setSelection({ kind: "nation", id: n.id })}
+          >
             <span
               className="swatch"
               style={{ background: `#${n.color.toString(16).padStart(6, "0")}` }}
             />
             {n.name}
-          </div>
+          </button>
         ))}
 
         <h2 className="panel-title">시장</h2>

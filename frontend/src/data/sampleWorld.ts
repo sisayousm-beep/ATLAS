@@ -9,12 +9,13 @@ export const sampleWorld: WorldView = {
     { id: "khoresan", name: "Khoresan", color: 0xd9a441 },
     { id: "nordheim", name: "Nordheim", color: 0x5b7fb5 },
   ],
+  // terrain/climate/infra/deposits mirror backend/src/world_gen.rs.
   regions: [
-    { id: 1, name: "Goldfields", nationId: "aurelia", population: 220_000, x: 0.22, y: 0.35 },
-    { id: 2, name: "Port Vesper", nationId: "aurelia", population: 150_000, x: 0.32, y: 0.6 },
-    { id: 3, name: "Sandreach", nationId: "khoresan", population: 138_000, x: 0.62, y: 0.4 },
-    { id: 4, name: "Oasis Hold", nationId: "khoresan", population: 89_000, x: 0.7, y: 0.62 },
-    { id: 5, name: "Frostmark", nationId: "nordheim", population: 205_000, x: 0.5, y: 0.18 },
+    { id: 1, name: "Goldfields", nationId: "aurelia", population: 220_000, terrain: "Plains", climate: "Temperate", infrastructure: 0.7, resources: [{ good: "IronOre", abundance: 0.8 }, { good: "Coal", abundance: 0.7 }], x: 0.22, y: 0.35 },
+    { id: 2, name: "Port Vesper", nationId: "aurelia", population: 150_000, terrain: "Coast", climate: "Temperate", infrastructure: 0.85, resources: [{ good: "Oil", abundance: 0.9 }], x: 0.32, y: 0.6 },
+    { id: 3, name: "Sandreach", nationId: "khoresan", population: 138_000, terrain: "Desert", climate: "Arid", infrastructure: 0.4, resources: [{ good: "Oil", abundance: 1.2 }], x: 0.62, y: 0.4 },
+    { id: 4, name: "Oasis Hold", nationId: "khoresan", population: 89_000, terrain: "Hills", climate: "Arid", infrastructure: 0.5, resources: [{ good: "IronOre", abundance: 0.7 }, { good: "Coal", abundance: 0.5 }], x: 0.7, y: 0.62 },
+    { id: 5, name: "Frostmark", nationId: "nordheim", population: 205_000, terrain: "Plains", climate: "Continental", infrastructure: 0.75, resources: [{ good: "IronOre", abundance: 0.9 }, { good: "Coal", abundance: 0.8 }, { good: "Oil", abundance: 0.4 }], x: 0.5, y: 0.18 },
   ],
   // Snapshot near where the Phase 3 sim settles after a few months: car firms
   // pull the chain so cars stay scarce and dear, steel sits a touch below base.

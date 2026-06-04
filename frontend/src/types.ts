@@ -8,11 +8,25 @@ export interface NationView {
   color: number;
 }
 
+export interface RegionResource {
+  good: string;
+  /** Extraction multiplier from the region's deposits. */
+  abundance: number;
+}
+
 export interface RegionView {
   id: number;
   name: string;
   nationId: string;
   population: number;
+  /** Terrain type, e.g. "Plains". */
+  terrain: string;
+  /** Climate type, e.g. "Temperate". */
+  climate: string;
+  /** Infrastructure quality, 0..1. Multiplies production & logistics. */
+  infrastructure: number;
+  /** Natural endowment: raw goods the region is rich in, with abundance. */
+  resources: RegionResource[];
   /** Normalised layout position, each in 0..1. */
   x: number;
   y: number;
