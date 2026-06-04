@@ -1,0 +1,414 @@
+//! A serialisable, read-only view of the world for the client (UI roadmap Phase 1).
+//!
+//! The simulation lives in the ECS; the UI needs a flat, JSON-friendly snapshot of
+//! it. `world_snapshot` walks the same state the monthly [`report`](crate::systems::report)
+//! prints and packs it into structs that serialise (camelCase) to exactly the shape
+//! the React client's `WorldView` expects, plus the game clock for the loop viewer.
+
+use crate::components::{Government, Nation, Pop, Profession, Region};
+use crate::corporation::Corporation;
+use crate::diplomacy::{relation_status, Diplomacy, Relation};
+use crate::finance::{CentralBank, FinanceLedger};
+use crate::politics::Politics;
+use crate::production::{base_price, Market, TRADED};
+use crate::resources::{GameClock, Good};
+use crate::war::{military_power, Military, Warfront};
+use bevy_ecs::prelude::*;
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClockView {
+    pub day: u64,
+    pub year: u64,
+    pub month: u64,
+    pub day_of_month: u64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct NationView {
+    pub id: String,
+    pub name: String,
+    /// Display colour as a 0xRRGGBB integer (Pixi-friendly).
+    pub color: u32,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionView {
+    pub id: u32,
+    pub name: String,
+    pub nation_id: String,
+    pub population: u64,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct GoodPrice {
+    pub good: String,
+    pub tier: String,
+    pub price: f64,
+    pub base: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CorporationView {
+    pub name: String,
+    pub nation_id: String,
+    pub industries: Vec<String>,
+    pub capital: f64,
+    pub employees: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FinanceView {
+    pub nation_id: String,
+    pub policy_rate: f64,
+    pub inflation: f64,
+    pub debt: f64,
+    pub money_supply: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PoliticsView {
+    pub nation_id: String,
+    pub government: String,
+    pub stability: f64,
+    pub unrest: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct RelationView {
+    pub a: String,
+    pub b: String,
+    pub status: String,
+    pub score: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MilitaryView {
+    pub nation_id: String,
+    pub power: f64,
+    pub strength: f64,
+    pub exhaustion: f64,
+    pub at_war: bool,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct WarView {
+    pub aggressor: String,
+    pub defender: String,
+}
+
+/// The whole world, flattened for the client. Mirrors the React `WorldView`,
+/// with the game clock added for the loop viewer.
+#[derive(Serialize, Clone, Debug)]
+pub struct WorldSnapshot {
+    pub clock: ClockView,
+    pub nations: Vec<NationView>,
+    pub regions: Vec<RegionView>,
+    pub prices: Vec<GoodPrice>,
+    pub corporations: Vec<CorporationView>,
+    pub finance: Vec<FinanceView>,
+    pub crisis: bool,
+    pub politics: Vec<PoliticsView>,
+    pub relations: Vec<RelationView>,
+    pub military: Vec<MilitaryView>,
+    pub wars: Vec<WarView>,
+}
+
+/// Walk the ECS world and pack it into a flat, serialisable snapshot.
+pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
+    // --- clock ---
+    let clock = {
+        let c = world.resource::<GameClock>();
+        ClockView { day: c.day, year: c.year(), month: c.month(), day_of_month: c.day_of_month() }
+    };
+
+    // --- nations (raw, keyed by entity for the cross-references below) ---
+    struct NatRaw {
+        e: Entity,
+        name: String,
+        gov: Government,
+        tech: f64,
+        stability: f64,
+        inflation: f64,
+        debt: f64,
+        rate: f64,
+        money: f64,
+        strength: f64,
+        exhaustion: f64,
+        unrest: f64,
+    }
+    let mut nats: Vec<NatRaw> = Vec::new();
+    {
+        let mut q = world.query::<(Entity, &Nation, &CentralBank, &Politics, &Military)>();
+        for (e, n, b, p, m) in q.iter(world) {
+            nats.push(NatRaw {
+                e,
+                name: n.name.clone(),
+                gov: n.government,
+                tech: n.technology,
+                stability: n.stability,
+                inflation: n.inflation,
+                debt: n.debt,
+                rate: b.policy_rate,
+                money: b.money_supply,
+                strength: m.strength,
+                exhaustion: m.exhaustion,
+                unrest: p.unrest,
+            });
+        }
+    }
+    let nation_id_of: HashMap<Entity, String> =
+        nats.iter().map(|n| (n.e, nation_id(&n.name))).collect();
+
+    // --- regions (name + owner) ---
+    struct RegRaw {
+        e: Entity,
+        name: String,
+        owner: Entity,
+    }
+    let mut regs: Vec<RegRaw> = Vec::new();
+    {
+        let mut q = world.query::<(Entity, &Region)>();
+        for (e, r) in q.iter(world) {
+            regs.push(RegRaw { e, name: r.name.clone(), owner: r.owner });
+        }
+    }
+    let region_owner: HashMap<Entity, Entity> = regs.iter().map(|r| (r.e, r.owner)).collect();
+
+    // --- pops: population per region, soldier manpower per nation ---
+    let mut pop_by_region: HashMap<Entity, u64> = HashMap::new();
+    let mut soldiers_by_nation: HashMap<Entity, f64> = HashMap::new();
+    {
+        let mut q = world.query::<&Pop>();
+        for pop in q.iter(world) {
+            *pop_by_region.entry(pop.region).or_default() += pop.size as u64;
+            if pop.profession == Profession::Soldier {
+                if let Some(&owner) = region_owner.get(&pop.region) {
+                    *soldiers_by_nation.entry(owner).or_default() += pop.size as f64;
+                }
+            }
+        }
+    }
+
+    // --- corporations ---
+    struct CorpRaw {
+        name: String,
+        owner: Entity,
+        capital: f64,
+        employees: f64,
+        industries: Vec<Good>,
+    }
+    let mut corps: Vec<CorpRaw> = Vec::new();
+    {
+        let mut q = world.query::<&Corporation>();
+        for c in q.iter(world) {
+            corps.push(CorpRaw {
+                name: c.name.clone(),
+                owner: c.owner,
+                capital: c.capital,
+                employees: c.employees,
+                industries: c.industries.clone(),
+            });
+        }
+    }
+
+    // --- prices + crisis flag (immutable resource reads) ---
+    let prices: Vec<GoodPrice> = {
+        let market = world.resource::<Market>();
+        TRADED
+            .iter()
+            .map(|&g| GoodPrice {
+                good: good_label(g),
+                tier: good_tier(g).to_string(),
+                price: market.price(g),
+                base: base_price(g),
+            })
+            .collect()
+    };
+    let crisis = world.resource::<FinanceLedger>().crisis;
+
+    // --- relations + active wars ---
+    let (relations, wars, at_war): (Vec<RelationView>, Vec<WarView>, HashSet<Entity>) = {
+        let diplo = world.resource::<Diplomacy>();
+        let warfront = world.resource::<Warfront>();
+        let relations = diplo
+            .relations
+            .iter()
+            .filter_map(|(&(a, b), &score)| {
+                Some(RelationView {
+                    a: nation_id_of.get(&a)?.clone(),
+                    b: nation_id_of.get(&b)?.clone(),
+                    status: relation_label(relation_status(score)).to_string(),
+                    score,
+                })
+            })
+            .collect();
+        let wars = warfront
+            .wars
+            .iter()
+            .filter_map(|w| {
+                Some(WarView {
+                    aggressor: nation_id_of.get(&w.aggressor)?.clone(),
+                    defender: nation_id_of.get(&w.defender)?.clone(),
+                })
+            })
+            .collect();
+        let mut set = HashSet::new();
+        for w in &warfront.wars {
+            set.insert(w.aggressor);
+            set.insert(w.defender);
+        }
+        (relations, wars, set)
+    };
+
+    // --- assemble the per-nation views ---
+    let nations: Vec<NationView> = nats
+        .iter()
+        .map(|n| NationView { id: nation_id(&n.name), name: n.name.clone(), color: nation_color(&n.name) })
+        .collect();
+    let finance: Vec<FinanceView> = nats
+        .iter()
+        .map(|n| FinanceView {
+            nation_id: nation_id(&n.name),
+            policy_rate: n.rate,
+            inflation: n.inflation,
+            debt: n.debt,
+            money_supply: n.money,
+        })
+        .collect();
+    let politics: Vec<PoliticsView> = nats
+        .iter()
+        .map(|n| PoliticsView {
+            nation_id: nation_id(&n.name),
+            government: format!("{:?}", n.gov),
+            stability: n.stability,
+            unrest: n.unrest,
+        })
+        .collect();
+    let military: Vec<MilitaryView> = nats
+        .iter()
+        .map(|n| {
+            let soldiers = soldiers_by_nation.get(&n.e).copied().unwrap_or(0.0);
+            MilitaryView {
+                nation_id: nation_id(&n.name),
+                power: military_power(n.strength, soldiers, n.tech, n.exhaustion),
+                strength: n.strength,
+                exhaustion: n.exhaustion,
+                at_war: at_war.contains(&n.e),
+            }
+        })
+        .collect();
+
+    let regions: Vec<RegionView> = regs
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let (x, y) = region_xy(&r.name, i);
+            RegionView {
+                id: r.e.index(),
+                name: r.name.clone(),
+                nation_id: nation_id_of.get(&r.owner).cloned().unwrap_or_default(),
+                population: pop_by_region.get(&r.e).copied().unwrap_or(0),
+                x,
+                y,
+            }
+        })
+        .collect();
+
+    let corporations: Vec<CorporationView> = corps
+        .iter()
+        .map(|c| CorporationView {
+            name: c.name.clone(),
+            nation_id: nation_id_of.get(&c.owner).cloned().unwrap_or_default(),
+            industries: c.industries.iter().map(|&g| good_label(g)).collect(),
+            capital: c.capital,
+            employees: c.employees,
+        })
+        .collect();
+
+    WorldSnapshot {
+        clock,
+        nations,
+        regions,
+        prices,
+        corporations,
+        finance,
+        crisis,
+        politics,
+        relations,
+        military,
+        wars,
+    }
+}
+
+fn nation_id(name: &str) -> String {
+    name.to_lowercase()
+}
+
+/// Display colour per nation. The hand-authored world's three nations get the
+/// client's existing palette; any other nation gets a stable colour from its name.
+fn nation_color(name: &str) -> u32 {
+    match name {
+        "Aurelia" => 0x4f_9d69,
+        "Khoresan" => 0xd9_a441,
+        "Nordheim" => 0x5b_7fb5,
+        other => {
+            // FNV-1a over the name, kept in the mid-brightness band so it reads on dark.
+            let mut h: u32 = 2166136261;
+            for b in other.bytes() {
+                h = (h ^ b as u32).wrapping_mul(16777619);
+            }
+            0x40_4040 | (h & 0x7f_7f7f)
+        }
+    }
+}
+
+/// Normalised map position (0..1) per region. Known regions are laid out by hand
+/// to match the seeded world; unknown ones fall on a deterministic spiral.
+fn region_xy(name: &str, index: usize) -> (f64, f64) {
+    match name {
+        "Goldfields" => (0.22, 0.35),
+        "Port Vesper" => (0.32, 0.60),
+        "Sandreach" => (0.62, 0.40),
+        "Oasis Hold" => (0.70, 0.62),
+        "Frostmark" => (0.50, 0.18),
+        _ => {
+            // Golden-angle spiral around the centre — spreads any extra regions out.
+            let golden = 2.399963;
+            let a = index as f64 * golden;
+            let r = 0.12 + 0.07 * (index as f64).sqrt();
+            (0.5 + r * a.cos(), 0.5 + r * a.sin())
+        }
+    }
+}
+
+fn good_label(g: Good) -> String {
+    format!("{:?}", g)
+}
+
+fn good_tier(g: Good) -> &'static str {
+    use Good::*;
+    match g {
+        Grain | Wood | IronOre | Coal | Oil | Uranium | RareEarth => "raw",
+        Iron | Steel | Plastic | Semiconductor | Battery => "intermediate",
+        Car | Electronics | Weapon | Computer | Robot => "finished",
+    }
+}
+
+fn relation_label(r: Relation) -> &'static str {
+    match r {
+        Relation::Ally => "ally",
+        Relation::Neutral => "neutral",
+        Relation::Rival => "rival",
+        Relation::Hostile => "hostile",
+    }
+}

@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Project Atlas",
+        "title": "프로젝트 아틀라스",
         "width": 1280,
         "height": 800,
         "resizable": true,

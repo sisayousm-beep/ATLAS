@@ -6,6 +6,7 @@ description = "Project Atlas — Phase 1 economic simulation core (bevy_ecs)"
 
 [dependencies]
 bevy_ecs = "0.16"
+serde = { version = "1", features = ["derive"] }
 
 [profile.dev]
 opt-level = 1

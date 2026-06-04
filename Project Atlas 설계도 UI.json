@@ -1,0 +1,735 @@
+# Project Atlas
+
+# Visualization Roadmap
+
+## 목적
+
+현재 Atlas는 시뮬레이션 엔진만 존재한다.
+
+목표는 이를 실제 플레이 가능한 경제 중심 대전략 게임으로 발전시키는 것이다.
+
+각 Phase는 독립적으로 완료 가능해야 한다.
+
+---
+
+# Phase 1
+
+# Strategy Client Foundation
+
+목표
+
+시뮬레이션 엔진과 UI를 연결한다.
+
+---
+
+구현
+
+* React Client 생성
+* Zustand 상태관리
+* Simulation API Adapter
+* Event Bus
+* Game Loop Viewer
+* Layout System
+
+---
+
+완료 조건
+
+```text
+Simulation Running
+
+Date Updating
+
+Game Speed Control
+
+Pause
+
+Resume
+```
+
+---
+
+결과
+
+```text
+Atlas Engine
+↓
+Atlas Client
+```
+
+---
+
+# Phase 2
+
+# World Map Renderer
+
+목표
+
+세계를 시각화한다.
+
+---
+
+구현
+
+* PixiJS
+* Camera
+* Zoom
+* Pan
+* Region Rendering
+* Nation Coloring
+
+---
+
+지도 표시
+
+```text
+Region
+
+Nation
+
+Terrain
+
+Borders
+```
+
+---
+
+완료 조건
+
+```text
+Map Visible
+
+Zoom Works
+
+Pan Works
+
+Nation Colors Visible
+```
+
+---
+
+결과
+
+처음으로 게임처럼 보이기 시작
+
+---
+
+# Phase 3
+
+# Region & Nation Inspection
+
+목표
+
+플레이어가 세계를 탐색
+
+---
+
+구현
+
+클릭
+
+↓
+
+선택
+
+↓
+
+상세정보
+
+---
+
+Region Inspector
+
+```text
+Population
+
+GDP
+
+Resources
+
+Infrastructure
+```
+
+---
+
+Nation Inspector
+
+```text
+Population
+
+Debt
+
+Inflation
+
+GDP
+
+Government
+```
+
+---
+
+완료 조건
+
+```text
+Click Region
+
+Click Nation
+
+View Details
+```
+
+---
+
+# Phase 4
+
+# Strategic HUD
+
+목표
+
+대전략 게임 UI 구축
+
+---
+
+Top Bar
+
+```text
+Date
+
+Money
+
+Population
+
+GDP
+```
+
+---
+
+Left Menu
+
+```text
+Overview
+
+Economy
+
+Trade
+
+Politics
+```
+
+---
+
+Right Inspector
+
+```text
+Selected Object
+```
+
+---
+
+Notification Feed
+
+```text
+Events
+```
+
+---
+
+완료 조건
+
+Victoria 스타일 HUD
+
+---
+
+# Phase 5
+
+# Nation Dashboard
+
+목표
+
+국가 운영 화면
+
+---
+
+화면
+
+```text
+Overview
+
+Economy
+
+Population
+
+Politics
+
+Technology
+```
+
+---
+
+차트
+
+```text
+GDP
+
+Debt
+
+Inflation
+
+Happiness
+```
+
+---
+
+완료 조건
+
+국가 운영 가능
+
+---
+
+# Phase 6
+
+# Economic Dashboard
+
+목표
+
+경제를 게임의 주인공으로 만든다.
+
+---
+
+화면
+
+```text
+GDP
+
+Employment
+
+Inflation
+
+Money Supply
+
+Interest Rate
+```
+
+---
+
+그래프
+
+```text
+1y
+
+5y
+
+10y
+
+50y
+```
+
+---
+
+완료 조건
+
+경제 상태 파악 가능
+
+---
+
+# Phase 7
+
+# Market Visualization
+
+목표
+
+시장 시스템 시각화
+
+---
+
+상품
+
+```text
+Food
+
+Wood
+
+Iron
+
+Coal
+
+Oil
+
+Steel
+
+Electronics
+
+Chips
+```
+
+---
+
+표시
+
+```text
+Price
+
+Supply
+
+Demand
+
+Trend
+```
+
+---
+
+완료 조건
+
+시장 변화 관찰 가능
+
+---
+
+# Phase 8
+
+# Company Dashboard
+
+목표
+
+기업을 플레이 요소로 만든다.
+
+---
+
+기업 리스트
+
+```text
+Revenue
+
+Profit
+
+Employees
+
+Market Share
+```
+
+---
+
+기업 상세
+
+```text
+Factories
+
+R&D
+
+Products
+
+Investments
+```
+
+---
+
+완료 조건
+
+기업 경제 확인 가능
+
+---
+
+# Phase 9
+
+# Trade Network Visualization
+
+목표
+
+물류와 무역을 시각화
+
+---
+
+표시
+
+```text
+Import
+
+Export
+
+Trade Routes
+```
+
+---
+
+지도 오버레이
+
+```text
+Shipping
+
+Rail
+
+Road
+```
+
+---
+
+완료 조건
+
+세계 경제 흐름 확인 가능
+
+---
+
+# Phase 10
+
+# Population Dashboard
+
+목표
+
+POP 시스템 시각화
+
+---
+
+분류
+
+```text
+Workers
+
+Farmers
+
+Engineers
+
+Scientists
+
+Soldiers
+```
+
+---
+
+지표
+
+```text
+Income
+
+Education
+
+Happiness
+
+Employment
+```
+
+---
+
+완료 조건
+
+인구 변화 분석 가능
+
+---
+
+# Phase 11
+
+# Technology Tree
+
+목표
+
+문명 발전 표현
+
+---
+
+트리
+
+```text
+Agriculture
+
+Industry
+
+Electricity
+
+Computing
+
+AI
+
+Space
+```
+
+---
+
+노드 그래프
+
+```text
+Research Progress
+```
+
+---
+
+완료 조건
+
+기술 발전 확인 가능
+
+---
+
+# Phase 12
+
+# Politics System UI
+
+목표
+
+정치 시뮬레이션 공개
+
+---
+
+정당
+
+```text
+Conservative
+
+Liberal
+
+Socialist
+
+Military
+```
+
+---
+
+표시
+
+```text
+Support
+
+Seats
+
+Influence
+```
+
+---
+
+완료 조건
+
+정치 운영 가능
+
+---
+
+# Phase 13
+
+# Diplomacy Screen
+
+목표
+
+국가 관계 관리
+
+---
+
+관계
+
+```text
+Alliance
+
+Neutral
+
+Rival
+
+Hostile
+```
+
+---
+
+액션
+
+```text
+Treaty
+
+Tariff
+
+Sanction
+
+Alliance
+```
+
+---
+
+완료 조건
+
+외교 플레이 가능
+
+---
+
+# Phase 14
+
+# Analytics Center
+
+목표
+
+게임 전체 분석
+
+---
+
+세계 순위
+
+```text
+GDP
+
+Population
+
+Technology
+
+Military
+
+Trade
+```
+
+---
+
+히스토리
+
+```text
+100 Years Timeline
+```
+
+---
+
+완료 조건
+
+세계 흐름 분석 가능
+
+---
+
+# Phase 15
+
+# Final Grand Strategy Experience
+
+목표
+
+완전한 플레이 경험
+
+---
+
+통합
+
+```text
+World Map
+
+Nation
+
+Economy
+
+Companies
+
+Trade
+
+Politics
+
+Technology
+
+Diplomacy
+```
+
+---
+
+완료 조건
+
+경제 중심 대전략 게임 MVP 완성
+
+---
+
+개발 우선순위
+
+Phase 1 → 2 → 3 → 4
+
+여기까지 완료되면 "게임"
+
+Phase 5 → 9
+
+여기까지 완료되면 "경제 전략 게임"
+
+Phase 10 → 15
+
+여기까지 완료되면 "경제 중심 대전략 시뮬레이터"

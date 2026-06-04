@@ -115,3 +115,22 @@ export interface WorldView {
   /** Active wars between nations (Phase 6, §15). Empty when the world is at peace. */
   wars: WarView[];
 }
+
+/** The game clock, for the Phase 1 loop viewer. */
+export interface ClockView {
+  /** Days since epoch. Day 0 = Year 1, Month 1, Day 1. */
+  day: number;
+  year: number;
+  month: number;
+  dayOfMonth: number;
+}
+
+/** A full world plus the clock — exactly what the simulation adapter delivers. */
+export type WorldSnapshot = WorldView & { clock: ClockView };
+
+/** Loop state mirrored from the engine, for the speed / pause controls. */
+export interface SimStatus {
+  paused: boolean;
+  /** In-game days per real second. */
+  speed: number;
+}
