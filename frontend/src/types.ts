@@ -43,6 +43,10 @@ export interface GoodPrice {
   price: number;
   /** Reference price; the live price drifts around this. */
   base: number;
+  /** Last day's market supply flow (Phase 7). */
+  supply: number;
+  /** Last day's market demand flow (Phase 7). */
+  demand: number;
 }
 
 export interface CorporationView {
@@ -102,6 +106,21 @@ export interface TechnologyView {
   level: number;
 }
 
+export interface LaborView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Working population in the labour force (the modelled active population). */
+  laborForce: number;
+  /** Heads holding a job. */
+  employed: number;
+  /** Heads without work: idle industrial labour + explicitly unemployed pops (실업자). */
+  unemployed: number;
+  /** Unemployed share of the labour force, 0..1 (실업률). */
+  unemploymentRate: number;
+  /** Employed share of the working-age population, 0..1 (고용률). */
+  employmentRate: number;
+}
+
 export type RelationStatus = "ally" | "neutral" | "rival" | "hostile";
 
 export interface RelationView {
@@ -150,6 +169,8 @@ export interface WorldView {
   politics: PoliticsView[];
   /** Per-nation technology level (design §12, §17). */
   technology: TechnologyView[];
+  /** Per-nation labour market: force, employment, unemployment (실업률/고용률). */
+  labor: LaborView[];
   /** Pairwise relations between nations (Phase 5, §14). */
   relations: RelationView[];
   /** Per-nation armed forces: power, strength, exhaustion (Phase 6, §15). */

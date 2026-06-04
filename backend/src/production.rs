@@ -57,12 +57,23 @@ pub struct Market {
     pub prices: HashMap<Good, f64>,
     supply: HashMap<Good, f64>,
     demand: HashMap<Good, f64>,
+    /// The previous day's completed supply/demand flows, retained when the live
+    /// tallies are cleared so the client can read each good's last-day market
+    /// activity (Phase 7 market visualisation).
+    last_supply: HashMap<Good, f64>,
+    last_demand: HashMap<Good, f64>,
 }
 
 impl Default for Market {
     fn default() -> Self {
         let prices = TRADED.iter().map(|&g| (g, base_price(g))).collect();
-        Market { prices, supply: HashMap::new(), demand: HashMap::new() }
+        Market {
+            prices,
+            supply: HashMap::new(),
+            demand: HashMap::new(),
+            last_supply: HashMap::new(),
+            last_demand: HashMap::new(),
+        }
     }
 }
 
@@ -82,10 +93,20 @@ impl Market {
     pub fn demand(&self, g: Good) -> f64 {
         *self.demand.get(&g).unwrap_or(&0.0)
     }
-    /// Clear the day's flows once prices have been updated from them.
+    /// The previous day's completed supply flow for a good (Phase 7).
+    pub fn last_supply(&self, g: Good) -> f64 {
+        *self.last_supply.get(&g).unwrap_or(&0.0)
+    }
+    /// The previous day's completed demand flow for a good (Phase 7).
+    pub fn last_demand(&self, g: Good) -> f64 {
+        *self.last_demand.get(&g).unwrap_or(&0.0)
+    }
+    /// Retire the day's flows once prices have been formed from them: keep a copy
+    /// as the "last day" figures for the client (Phase 7), then clear the live
+    /// tallies for the next day.
     pub fn clear_flows(&mut self) {
-        self.supply.clear();
-        self.demand.clear();
+        self.last_supply = mem::take(&mut self.supply);
+        self.last_demand = mem::take(&mut self.demand);
     }
 }
 

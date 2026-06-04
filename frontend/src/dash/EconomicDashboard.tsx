@@ -47,6 +47,11 @@ export function EconomicDashboard({ world, macro, onClose }: Props) {
   const inflation = mean(world.finance.map((f) => f.inflation));
   const moneySupply = world.finance.reduce((s, f) => s + f.moneySupply, 0);
   const interestRate = mean(world.finance.map((f) => f.policyRate));
+  // Unemployment is the world's labour-force-weighted 실업률 (design §8).
+  const laborForce = world.labor.reduce((s, l) => s + l.laborForce, 0);
+  const unemployment = laborForce > 0
+    ? world.labor.reduce((s, l) => s + l.unemployed, 0) / laborForce
+    : 0;
 
   const slice = (pick: (m: MacroSample) => number) => macro.slice(-range.months).map(pick);
 
@@ -65,6 +70,7 @@ export function EconomicDashboard({ world, macro, onClose }: Props) {
           <div className="dash-kpis macro">
             <Kpi label="GDP" value={compact(gdp)} />
             <Kpi label="고용" value={compact(employment)} />
+            <Kpi label="실업률" value={pct1(unemployment)} />
             <Kpi label="물가" value={pct1(inflation)} />
             <Kpi label="통화량" value={compact(moneySupply)} />
             <Kpi label="금리" value={pct1(interestRate)} />
@@ -91,6 +97,12 @@ export function EconomicDashboard({ world, macro, onClose }: Props) {
               color="#5b7fb5"
             />
             <ChartCard
+              title="실업률"
+              value={pct1(unemployment)}
+              data={slice((m) => m.unemployment)}
+              color="#d98c5b"
+            />
+            <ChartCard
               title="물가"
               value={pct1(inflation)}
               data={slice((m) => m.inflation)}
@@ -109,7 +121,9 @@ export function EconomicDashboard({ world, macro, onClose }: Props) {
               color="#e0686d"
             />
           </div>
-          <p className="dash-note">고용은 기업 고용 인원 합계 · 물가/금리는 국가 평균.</p>
+          <p className="dash-note">
+            고용은 기업 고용 인원 합계 · 실업률은 노동력 가중 평균 · 물가/금리는 국가 평균.
+          </p>
         </div>
       </div>
     </div>

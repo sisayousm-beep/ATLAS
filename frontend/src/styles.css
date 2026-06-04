@@ -796,9 +796,9 @@ body {
   gap: 12px;
   margin-bottom: 20px;
 }
-/* Phase 6 economic dashboard: five macro KPIs across one row. */
+/* Phase 6 economic dashboard: macro KPIs across one row. */
 .dash-kpis.macro {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
 }
 .dash-kpi {
   display: flex;
@@ -949,4 +949,57 @@ body {
   justify-content: center;
   color: #6b7398;
   font-size: 12px;
+}
+
+/* Phase 7 market dashboard: goods table with price, supply/demand, trend, spark. */
+.market-table {
+  display: flex;
+  flex-direction: column;
+}
+.market-head,
+.market-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr 1fr 1.1fr 130px;
+  align-items: center;
+  gap: 8px;
+}
+.market-head {
+  padding: 0 8px 8px;
+  color: #8b93b8;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #1c2340;
+}
+.market-row {
+  padding: 8px;
+  border-bottom: 1px solid #131a32;
+}
+.market-row:hover {
+  background: #0e1430;
+}
+.market-good {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c5cbe6;
+}
+.market-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e6e9f5;
+  font-size: 13px;
+}
+.market-price {
+  font-weight: 600;
+}
+.market-spark {
+  height: 30px;
+}
+.market-spark .chart {
+  height: 30px;
+}
+.market-spark .chart-empty {
+  height: 30px;
+  font-size: 11px;
 }

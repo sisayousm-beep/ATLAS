@@ -7,6 +7,7 @@ import { Panel } from "./hud/Panel";
 import { NotificationFeed } from "./hud/NotificationFeed";
 import { NationDashboard, type DashTab } from "./dash/NationDashboard";
 import { EconomicDashboard } from "./dash/EconomicDashboard";
+import { MarketDashboard } from "./dash/MarketDashboard";
 import { compact } from "./i18n/format";
 
 const SPEEDS = [1, 2, 5];
@@ -17,6 +18,7 @@ export default function App() {
   const live = useGameStore((s) => s.live);
   const history = useGameStore((s) => s.history);
   const macro = useGameStore((s) => s.macro);
+  const priceHistory = useGameStore((s) => s.priceHistory);
   const init = useGameStore((s) => s.init);
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);
@@ -31,6 +33,8 @@ export default function App() {
   const [dashTab, setDashTab] = useState<DashTab>("overview");
   // Phase 6: whether the world economic dashboard is open.
   const [econOpen, setEconOpen] = useState(false);
+  // Phase 7: whether the market dashboard is open.
+  const [marketOpen, setMarketOpen] = useState(false);
 
   useEffect(() => {
     void init();
@@ -91,6 +95,10 @@ export default function App() {
           📊 경제
         </button>
 
+        <button className="ctrl" onClick={() => setMarketOpen(true)}>
+          📈 시장
+        </button>
+
         <div className="kpis">
           <span className="kpi-focus">{focusName}</span>
           <Kpi label="GDP" value={compact(gdp)} />
@@ -142,6 +150,14 @@ export default function App() {
 
       {econOpen && (
         <EconomicDashboard world={world} macro={macro} onClose={() => setEconOpen(false)} />
+      )}
+
+      {marketOpen && (
+        <MarketDashboard
+          world={world}
+          priceHistory={priceHistory}
+          onClose={() => setMarketOpen(false)}
+        />
       )}
     </div>
   );

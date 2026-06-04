@@ -68,6 +68,10 @@ pub struct GoodPrice {
     pub tier: String,
     pub price: f64,
     pub base: f64,
+    /// The last day's market supply flow (Phase 7 market visualisation).
+    pub supply: f64,
+    /// The last day's market demand flow (Phase 7 market visualisation).
+    pub demand: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -124,6 +128,26 @@ pub struct TechnologyView {
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LaborView {
+    pub nation_id: String,
+    /// Working population in the labour force. The simulation models only the
+    /// economically active population, so every pop is a member of the force.
+    pub labor_force: f64,
+    /// Heads holding a job (the labour force less the unemployed).
+    pub employed: f64,
+    /// Heads without work: explicitly unemployed pops plus engineers no firm in
+    /// their region is hiring (idle industrial labour, design §8). 실업자.
+    pub unemployed: f64,
+    /// Unemployed share of the labour force, 0..1. 실업률.
+    pub unemployment_rate: f64,
+    /// Employed share of the *working-age* population, 0..1 — the labour-force
+    /// employment scaled by the participation rate so it reads like a real
+    /// employment rate. 고용률.
+    pub employment_rate: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
 pub struct RelationView {
     pub a: String,
     pub b: String,
@@ -164,7 +188,14 @@ pub struct WorldSnapshot {
     pub relations: Vec<RelationView>,
     pub military: Vec<MilitaryView>,
     pub wars: Vec<WarView>,
+    /// Per-nation labour market: force, employment, unemployment (실업률/고용률).
+    pub labor: Vec<LaborView>,
 }
+
+/// Share of the working-age population in the labour force. The model carries
+/// only the active population, so this maps the labour-force figures onto a
+/// realistic employment rate (고용률 ≈ employed over the whole working-age pop).
+const PARTICIPATION: f64 = 0.63;
 
 /// Walk the ECS world and pack it into a flat, serialisable snapshot.
 pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
@@ -268,16 +299,26 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
     // system's stability input, design §13).
     let mut heads_by_nation: HashMap<Entity, f64> = HashMap::new();
     let mut happy_by_nation: HashMap<Entity, f64> = HashMap::new();
+    // Labour inputs (실업률, design §8): engineers available per region, and the
+    // heads explicitly out of work per nation.
+    let mut engineers_by_region: HashMap<Entity, f64> = HashMap::new();
+    let mut unemployed_by_nation: HashMap<Entity, f64> = HashMap::new();
     {
         let mut q = world.query::<&Pop>();
         for pop in q.iter(world) {
             *pop_by_region.entry(pop.region).or_default() += pop.size as u64;
+            if pop.profession == Profession::Engineer {
+                *engineers_by_region.entry(pop.region).or_default() += pop.size as f64;
+            }
             if let Some(&owner) = region_owner.get(&pop.region) {
                 let size = pop.size as f64;
                 *heads_by_nation.entry(owner).or_default() += size;
                 *happy_by_nation.entry(owner).or_default() += pop.happiness * size;
                 if pop.profession == Profession::Soldier {
                     *soldiers_by_nation.entry(owner).or_default() += size;
+                }
+                if pop.profession == Profession::Unemployed {
+                    *unemployed_by_nation.entry(owner).or_default() += size;
                 }
             }
         }
@@ -287,6 +328,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
     struct CorpRaw {
         name: String,
         owner: Entity,
+        region: Entity,
         capital: f64,
         employees: f64,
         industries: Vec<Good>,
@@ -298,10 +340,28 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
             corps.push(CorpRaw {
                 name: c.name.clone(),
                 owner: c.owner,
+                region: c.region,
                 capital: c.capital,
                 employees: c.employees,
                 industries: c.industries.clone(),
             });
+        }
+    }
+
+    // --- labour market (실업률, design §8): the only slack in the modelled
+    // workforce is industrial — engineers a region has but no firm there is
+    // hiring sit idle. Sum that idle labour (plus any explicitly unemployed pops)
+    // against the labour force to read each nation's unemployment. ---
+    let mut corp_emp_by_region: HashMap<Entity, f64> = HashMap::new();
+    for c in &corps {
+        *corp_emp_by_region.entry(c.region).or_default() += c.employees;
+    }
+    let mut idle_by_nation: HashMap<Entity, f64> = HashMap::new();
+    for (&region, &eng) in &engineers_by_region {
+        let used = corp_emp_by_region.get(&region).copied().unwrap_or(0.0);
+        let idle = (eng - used).max(0.0);
+        if let Some(&owner) = region_owner.get(&region) {
+            *idle_by_nation.entry(owner).or_default() += idle;
         }
     }
 
@@ -315,6 +375,8 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 tier: good_tier(g).to_string(),
                 price: market.price(g),
                 base: base_price(g),
+                supply: market.last_supply(g),
+                demand: market.last_demand(g),
             })
             .collect()
     };
@@ -398,6 +460,29 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         .iter()
         .map(|n| TechnologyView { nation_id: nation_id(&n.name), level: n.tech })
         .collect();
+    let labor: Vec<LaborView> = nats
+        .iter()
+        .map(|n| {
+            let labor_force = heads_by_nation.get(&n.e).copied().unwrap_or(0.0);
+            let unemployed = (unemployed_by_nation.get(&n.e).copied().unwrap_or(0.0)
+                + idle_by_nation.get(&n.e).copied().unwrap_or(0.0))
+            .min(labor_force);
+            let employed = (labor_force - unemployed).max(0.0);
+            let (unemployment_rate, employment_rate) = if labor_force > 0.0 {
+                (unemployed / labor_force, (employed / labor_force) * PARTICIPATION)
+            } else {
+                (0.0, 0.0)
+            };
+            LaborView {
+                nation_id: nation_id(&n.name),
+                labor_force,
+                employed,
+                unemployed,
+                unemployment_rate,
+                employment_rate,
+            }
+        })
+        .collect();
     let military: Vec<MilitaryView> = nats
         .iter()
         .map(|n| {
@@ -458,6 +543,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         relations,
         military,
         wars,
+        labor,
     }
 }
 

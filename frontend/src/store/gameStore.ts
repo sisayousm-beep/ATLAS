@@ -16,6 +16,8 @@ const FEED_LIMIT = 30;
 const HISTORY_LIMIT = 120;
 /** Months of world macro history kept for the Phase 6 dashboard (50y range). */
 const MACRO_LIMIT = 600;
+/** Months of per-good price history kept for the Phase 7 market dashboard. */
+const PRICE_LIMIT = 120;
 
 /** One month's headline figures for a nation (Phase 5 dashboard charts). */
 export interface NationSample {
@@ -30,7 +32,7 @@ export interface NationSample {
 /** One month's world-economy aggregates (Phase 6 economic dashboard).
  * GDP / employment / money supply are world sums; inflation and the interest
  * rate are simple means across nations. Employment is the head-count employed
- * by firms (no unemployment series exists in the engine). */
+ * by firms; unemployment is the labour-force-weighted world 실업률. */
 export interface MacroSample {
   year: number;
   month: number;
@@ -39,6 +41,8 @@ export interface MacroSample {
   inflation: number;
   moneySupply: number;
   interestRate: number;
+  /** World unemployment rate, labour-force-weighted (실업률). */
+  unemployment: number;
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -52,6 +56,8 @@ interface GameState {
   history: Record<string, NationSample[]>;
   /** World macro history, oldest first (Phase 6 economic dashboard). */
   macro: MacroSample[];
+  /** Per-good price history, oldest first (Phase 7 market dashboard). */
+  priceHistory: Record<string, number[]>;
   /** True when driven by the real engine, false on the browser mock. */
   live: boolean;
   ready: boolean;
@@ -72,10 +78,15 @@ let lastMonthKey: number | null = null;
 function record(
   hist: Record<string, NationSample[]>,
   macro: MacroSample[],
+  prices: Record<string, number[]>,
   world: WorldSnapshot,
-): { history: Record<string, NationSample[]>; macro: MacroSample[] } {
+): {
+  history: Record<string, NationSample[]>;
+  macro: MacroSample[];
+  priceHistory: Record<string, number[]>;
+} {
   const key = world.clock.year * 12 + world.clock.month;
-  if (key === lastMonthKey) return { history: hist, macro };
+  if (key === lastMonthKey) return { history: hist, macro, priceHistory: prices };
   lastMonthKey = key;
 
   const next: Record<string, NationSample[]> = {};
@@ -94,6 +105,9 @@ function record(
     next[n.id] = [...(hist[n.id] ?? []), point].slice(-HISTORY_LIMIT);
   }
 
+  const labor = world.labor ?? [];
+  const laborForce = labor.reduce((s, l) => s + l.laborForce, 0);
+  const unemployedHeads = labor.reduce((s, l) => s + l.unemployed, 0);
   const macroPoint: MacroSample = {
     year: world.clock.year,
     month: world.clock.month,
@@ -102,9 +116,20 @@ function record(
     inflation: mean(world.finance.map((f) => f.inflation)),
     moneySupply: world.finance.reduce((s, f) => s + f.moneySupply, 0),
     interestRate: mean(world.finance.map((f) => f.policyRate)),
+    unemployment: laborForce > 0 ? unemployedHeads / laborForce : 0,
   };
 
-  return { history: next, macro: [...macro, macroPoint].slice(-MACRO_LIMIT) };
+  // Phase 7: append each good's live price to its series, for the market charts.
+  const nextPrices: Record<string, number[]> = {};
+  for (const p of world.prices) {
+    nextPrices[p.good] = [...(prices[p.good] ?? []), p.price].slice(-PRICE_LIMIT);
+  }
+
+  return {
+    history: next,
+    macro: [...macro, macroPoint].slice(-MACRO_LIMIT),
+    priceHistory: nextPrices,
+  };
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -113,6 +138,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   notifications: [],
   history: {},
   macro: [],
+  priceHistory: {},
   live: false,
   ready: false,
 
@@ -121,13 +147,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     adapter = createAdapter();
 
     const [status, world] = await Promise.all([adapter.getStatus(), adapter.getWorld()]);
-    set({ status, world, live: adapter.live, ready: true, ...record({}, [], world) });
+    set({ status, world, live: adapter.live, ready: true, ...record({}, [], {}, world) });
     bus.emit("world", world);
     bus.emit("tick", world.clock);
 
     await adapter.onWorld((w) => {
       const prev = get().world;
-      set({ world: w, ...record(get().history, get().macro, w) });
+      set({ world: w, ...record(get().history, get().macro, get().priceHistory, w) });
       if (prev) {
         const raised = diffWorld(prev, w).map((r) => ({ ...r, id: notifId++ }));
         if (raised.length > 0) {

@@ -19,15 +19,18 @@ export const sampleWorld: WorldView = {
   ],
   // Snapshot near where the Phase 3 sim settles after a few months: car firms
   // pull the chain so cars stay scarce and dear, steel sits a touch below base.
+  // supply/demand are the last trading day's flows (Phase 7). Raw and intermediate
+  // goods sit in surplus (supply > demand) so their prices ride below base; the car
+  // chain runs scarce (demand > supply), holding cars dear above base.
   prices: [
-    { good: "Grain", tier: "raw", price: 0.8, base: 1.0 },
-    { good: "IronOre", tier: "raw", price: 1.0, base: 2.0 },
-    { good: "Coal", tier: "raw", price: 0.4, base: 2.0 },
-    { good: "Oil", tier: "raw", price: 0.4, base: 4.0 },
-    { good: "Iron", tier: "intermediate", price: 4.0, base: 6.0 },
-    { good: "Steel", tier: "intermediate", price: 7.0, base: 12.0 },
-    { good: "Plastic", tier: "intermediate", price: 1.0, base: 10.0 },
-    { good: "Car", tier: "finished", price: 426.0, base: 120.0 },
+    { good: "Grain", tier: "raw", price: 0.8, base: 1.0, supply: 3_200, demand: 2_600 },
+    { good: "IronOre", tier: "raw", price: 1.0, base: 2.0, supply: 1_400, demand: 900 },
+    { good: "Coal", tier: "raw", price: 0.4, base: 2.0, supply: 1_800, demand: 700 },
+    { good: "Oil", tier: "raw", price: 0.4, base: 4.0, supply: 900, demand: 320 },
+    { good: "Iron", tier: "intermediate", price: 4.0, base: 6.0, supply: 520, demand: 470 },
+    { good: "Steel", tier: "intermediate", price: 7.0, base: 12.0, supply: 300, demand: 240 },
+    { good: "Plastic", tier: "intermediate", price: 1.0, base: 10.0, supply: 410, demand: 180 },
+    { good: "Car", tier: "finished", price: 426.0, base: 120.0, supply: 60, demand: 95 },
   ],
   // Firms from world_gen.rs; capital/staff near the day-120 sim state. Car plants
   // dominate; the steelworks run at a loss and are shedding workers.
@@ -75,6 +78,15 @@ export const sampleWorld: WorldView = {
     { nationId: "aurelia", level: 1.0 },
     { nationId: "khoresan", level: 0.8 },
     { nationId: "nordheim", level: 1.3 },
+  ],
+  // Labour market (실업률/고용률). The healthy industrial powers run near full
+  // employment; broke, inflation-bitten Khoresan — whose thin industry can't
+  // absorb its workers — carries the slack. employmentRate (고용률) is the share
+  // of the working-age population in work, so it reads ~60% even at low 실업률.
+  labor: [
+    { nationId: "aurelia", laborForce: 370_000, employed: 354_460, unemployed: 15_540, unemploymentRate: 0.042, employmentRate: 0.604 },
+    { nationId: "khoresan", laborForce: 227_000, employed: 205_435, unemployed: 21_565, unemploymentRate: 0.095, employmentRate: 0.570 },
+    { nationId: "nordheim", laborForce: 205_000, employed: 197_825, unemployed: 7_175, unemploymentRate: 0.035, employmentRate: 0.608 },
   ],
   // Commerce binds the two industrial powers into an alliance despite the
   // democracy/monarchy divide; the authoritarian pair keeps a cool neutrality;
