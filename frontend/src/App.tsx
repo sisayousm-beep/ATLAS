@@ -6,6 +6,7 @@ import { LeftNav, type HudTab } from "./hud/LeftNav";
 import { Panel } from "./hud/Panel";
 import { NotificationFeed } from "./hud/NotificationFeed";
 import { NationDashboard, type DashTab } from "./dash/NationDashboard";
+import { EconomicDashboard } from "./dash/EconomicDashboard";
 import { compact } from "./i18n/format";
 
 const SPEEDS = [1, 2, 5];
@@ -15,6 +16,7 @@ export default function App() {
   const status = useGameStore((s) => s.status);
   const live = useGameStore((s) => s.live);
   const history = useGameStore((s) => s.history);
+  const macro = useGameStore((s) => s.macro);
   const init = useGameStore((s) => s.init);
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);
@@ -27,6 +29,8 @@ export default function App() {
   // Phase 5: the nation whose dashboard is open (full-screen), and its sub-tab.
   const [dashNation, setDashNation] = useState<string | null>(null);
   const [dashTab, setDashTab] = useState<DashTab>("overview");
+  // Phase 6: whether the world economic dashboard is open.
+  const [econOpen, setEconOpen] = useState(false);
 
   useEffect(() => {
     void init();
@@ -83,6 +87,10 @@ export default function App() {
 
         <span className={`mode ${live ? "live" : "mock"}`}>{live ? "● 엔진" : "○ 데모"}</span>
 
+        <button className="ctrl" onClick={() => setEconOpen(true)}>
+          📊 경제
+        </button>
+
         <div className="kpis">
           <span className="kpi-focus">{focusName}</span>
           <Kpi label="GDP" value={compact(gdp)} />
@@ -130,6 +138,10 @@ export default function App() {
           onSelectNation={setDashNation}
           onClose={() => setDashNation(null)}
         />
+      )}
+
+      {econOpen && (
+        <EconomicDashboard world={world} macro={macro} onClose={() => setEconOpen(false)} />
       )}
     </div>
   );

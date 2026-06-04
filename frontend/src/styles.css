@@ -796,6 +796,10 @@ body {
   gap: 12px;
   margin-bottom: 20px;
 }
+/* Phase 6 economic dashboard: five macro KPIs across one row. */
+.dash-kpis.macro {
+  grid-template-columns: repeat(5, 1fr);
+}
 .dash-kpi {
   display: flex;
   flex-direction: column;
@@ -875,6 +879,31 @@ body {
   margin: 12px 0 0;
   color: #6b7398;
   font-size: 12px;
+}
+
+/* Phase 6 economic dashboard: range selector scoping every chart (1/5/10/50y). */
+.dash-range {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.range-btn {
+  padding: 5px 12px;
+  border: 1px solid #1c2340;
+  border-radius: 4px;
+  background: #131a32;
+  color: #c5cbe6;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.range-btn:hover {
+  background: #1b2444;
+}
+.range-btn.active {
+  background: #2d3a6b;
+  border-color: #3a4a82;
+  color: #e6e9f5;
 }
 
 /* Charts (inline SVG line charts). */

@@ -14,6 +14,8 @@ import { diffWorld } from "../bus/notifications";
 const FEED_LIMIT = 30;
 /** Months of per-nation history kept for the Phase 5 dashboard charts (~10y). */
 const HISTORY_LIMIT = 120;
+/** Months of world macro history kept for the Phase 6 dashboard (50y range). */
+const MACRO_LIMIT = 600;
 
 /** One month's headline figures for a nation (Phase 5 dashboard charts). */
 export interface NationSample {
@@ -25,6 +27,22 @@ export interface NationSample {
   happiness: number;
 }
 
+/** One month's world-economy aggregates (Phase 6 economic dashboard).
+ * GDP / employment / money supply are world sums; inflation and the interest
+ * rate are simple means across nations. Employment is the head-count employed
+ * by firms (no unemployment series exists in the engine). */
+export interface MacroSample {
+  year: number;
+  month: number;
+  gdp: number;
+  employment: number;
+  inflation: number;
+  moneySupply: number;
+  interestRate: number;
+}
+
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
 interface GameState {
   world: WorldSnapshot | null;
   status: SimStatus;
@@ -32,6 +50,8 @@ interface GameState {
   notifications: GameNotification[];
   /** Per-nation monthly history, oldest first (Phase 5 dashboard charts). */
   history: Record<string, NationSample[]>;
+  /** World macro history, oldest first (Phase 6 economic dashboard). */
+  macro: MacroSample[];
   /** True when driven by the real engine, false on the browser mock. */
   live: boolean;
   ready: boolean;
@@ -46,14 +66,16 @@ let notifId = 1;
 /** Last month appended to history, so each month is recorded once. */
 let lastMonthKey: number | null = null;
 
-/** Append this month's figures to each nation's history, once per game month.
- * Returns the same map when the month is unchanged, so charts don't churn. */
-function appendHistory(
+/** Append this month's figures, once per game month, to both the per-nation
+ * history (Phase 5) and the world macro history (Phase 6). Returns the previous
+ * series unchanged when the month is unchanged, so charts don't churn. */
+function record(
   hist: Record<string, NationSample[]>,
+  macro: MacroSample[],
   world: WorldSnapshot,
-): Record<string, NationSample[]> {
+): { history: Record<string, NationSample[]>; macro: MacroSample[] } {
   const key = world.clock.year * 12 + world.clock.month;
-  if (key === lastMonthKey) return hist;
+  if (key === lastMonthKey) return { history: hist, macro };
   lastMonthKey = key;
 
   const next: Record<string, NationSample[]> = {};
@@ -71,7 +93,18 @@ function appendHistory(
     };
     next[n.id] = [...(hist[n.id] ?? []), point].slice(-HISTORY_LIMIT);
   }
-  return next;
+
+  const macroPoint: MacroSample = {
+    year: world.clock.year,
+    month: world.clock.month,
+    gdp: world.economy.reduce((s, e) => s + e.gdp, 0),
+    employment: world.corporations.reduce((s, c) => s + c.employees, 0),
+    inflation: mean(world.finance.map((f) => f.inflation)),
+    moneySupply: world.finance.reduce((s, f) => s + f.moneySupply, 0),
+    interestRate: mean(world.finance.map((f) => f.policyRate)),
+  };
+
+  return { history: next, macro: [...macro, macroPoint].slice(-MACRO_LIMIT) };
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -79,6 +112,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   status: { paused: false, speed: 1 },
   notifications: [],
   history: {},
+  macro: [],
   live: false,
   ready: false,
 
@@ -87,13 +121,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     adapter = createAdapter();
 
     const [status, world] = await Promise.all([adapter.getStatus(), adapter.getWorld()]);
-    set({ status, world, live: adapter.live, ready: true, history: appendHistory({}, world) });
+    set({ status, world, live: adapter.live, ready: true, ...record({}, [], world) });
     bus.emit("world", world);
     bus.emit("tick", world.clock);
 
     await adapter.onWorld((w) => {
       const prev = get().world;
-      set({ world: w, history: appendHistory(get().history, w) });
+      set({ world: w, ...record(get().history, get().macro, w) });
       if (prev) {
         const raised = diffWorld(prev, w).map((r) => ({ ...r, id: notifId++ }));
         if (raised.length > 0) {
