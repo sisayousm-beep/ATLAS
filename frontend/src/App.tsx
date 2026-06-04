@@ -9,6 +9,8 @@ import { NationDashboard, type DashTab } from "./dash/NationDashboard";
 import { EconomicDashboard } from "./dash/EconomicDashboard";
 import { MarketDashboard } from "./dash/MarketDashboard";
 import { CompanyDashboard } from "./dash/CompanyDashboard";
+import { TradeDashboard } from "./dash/TradeDashboard";
+import { PopulationDashboard } from "./dash/PopulationDashboard";
 import { compact } from "./i18n/format";
 
 const SPEEDS = [1, 2, 5];
@@ -38,6 +40,10 @@ export default function App() {
   const [marketOpen, setMarketOpen] = useState(false);
   // Phase 8: whether the company dashboard is open.
   const [companyOpen, setCompanyOpen] = useState(false);
+  // Phase 9: whether the trade network dashboard is open.
+  const [tradeOpen, setTradeOpen] = useState(false);
+  // Phase 10: whether the population dashboard is open.
+  const [popOpen, setPopOpen] = useState(false);
 
   useEffect(() => {
     void init();
@@ -106,6 +112,14 @@ export default function App() {
           🏭 기업
         </button>
 
+        <button className="ctrl" onClick={() => setTradeOpen(true)}>
+          🚢 무역
+        </button>
+
+        <button className="ctrl" onClick={() => setPopOpen(true)}>
+          👥 인구
+        </button>
+
         <div className="kpis">
           <span className="kpi-focus">{focusName}</span>
           <Kpi label="GDP" value={compact(gdp)} />
@@ -170,6 +184,10 @@ export default function App() {
       {companyOpen && (
         <CompanyDashboard world={world} onClose={() => setCompanyOpen(false)} />
       )}
+
+      {tradeOpen && <TradeDashboard world={world} onClose={() => setTradeOpen(false)} />}
+
+      {popOpen && <PopulationDashboard world={world} onClose={() => setPopOpen(false)} />}
     </div>
   );
 }

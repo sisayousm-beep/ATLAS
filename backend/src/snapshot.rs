@@ -175,6 +175,34 @@ pub struct WarView {
     pub defender: String,
 }
 
+/// One cross-border trade route (UI roadmap Phase 9 — trade network). The pair is
+/// undirected (the logistics layer records by normalised pair), so `value` is the
+/// total commerce flowing between the two nations this month, regardless of direction.
+#[derive(Serialize, Clone, Debug)]
+pub struct TradeRouteView {
+    pub a: String,
+    pub b: String,
+    /// Cross-border trade value between the pair, accumulated this month.
+    pub value: f64,
+}
+
+/// One population class (UI roadmap Phase 10 — POP dashboard). Aggregates every
+/// pop of a profession worldwide: total heads, plus size-weighted averages of the
+/// indicators the engine already carries on each pop.
+#[derive(Serialize, Clone, Debug)]
+pub struct PopClassView {
+    /// Profession name (English enum, labelled client-side).
+    pub profession: String,
+    /// Total heads in this class, worldwide.
+    pub size: f64,
+    /// Size-weighted average wealth — the class's income proxy.
+    pub income: f64,
+    /// Size-weighted average literacy (education), 0..1.
+    pub literacy: f64,
+    /// Size-weighted average happiness, 0..1.
+    pub happiness: f64,
+}
+
 /// The whole world, flattened for the client. Mirrors the React `WorldView`,
 /// with the game clock added for the loop viewer.
 #[derive(Serialize, Clone, Debug)]
@@ -194,6 +222,11 @@ pub struct WorldSnapshot {
     pub wars: Vec<WarView>,
     /// Per-nation labour market: force, employment, unemployment (실업률/고용률).
     pub labor: Vec<LaborView>,
+    /// Cross-border trade routes between nation pairs (Phase 9 trade network).
+    #[serde(rename = "tradeRoutes")]
+    pub trade_routes: Vec<TradeRouteView>,
+    /// Population by class, worldwide (Phase 10 POP dashboard).
+    pub population: Vec<PopClassView>,
 }
 
 /// Share of the working-age population in the labour force. The model carries
@@ -307,12 +340,23 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
     // heads explicitly out of work per nation.
     let mut engineers_by_region: HashMap<Entity, f64> = HashMap::new();
     let mut unemployed_by_nation: HashMap<Entity, f64> = HashMap::new();
+    // Phase 10 POP dashboard: per-profession worldwide aggregates, carried as
+    // (heads, wealth·heads, literacy·heads, happiness·heads) for size-weighted means.
+    let mut pop_class: HashMap<Profession, (f64, f64, f64, f64)> = HashMap::new();
     {
         let mut q = world.query::<&Pop>();
         for pop in q.iter(world) {
             *pop_by_region.entry(pop.region).or_default() += pop.size as u64;
             if pop.profession == Profession::Engineer {
                 *engineers_by_region.entry(pop.region).or_default() += pop.size as f64;
+            }
+            {
+                let s = pop.size as f64;
+                let acc = pop_class.entry(pop.profession).or_default();
+                acc.0 += s;
+                acc.1 += pop.wealth * s;
+                acc.2 += pop.literacy * s;
+                acc.3 += pop.happiness * s;
             }
             if let Some(&owner) = region_owner.get(&pop.region) {
                 let size = pop.size as f64;
@@ -390,8 +434,13 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
     };
     let crisis = world.resource::<FinanceLedger>().crisis;
 
-    // --- relations + active wars ---
-    let (relations, wars, at_war): (Vec<RelationView>, Vec<WarView>, HashSet<Entity>) = {
+    // --- relations + active wars + trade routes (Phase 9) ---
+    let (relations, wars, at_war, trade_routes): (
+        Vec<RelationView>,
+        Vec<WarView>,
+        HashSet<Entity>,
+        Vec<TradeRouteView>,
+    ) = {
         let diplo = world.resource::<Diplomacy>();
         let warfront = world.resource::<Warfront>();
         let relations = diplo
@@ -406,6 +455,20 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 })
             })
             .collect();
+        // Cross-border commerce accumulated since the last monthly diplomacy pass.
+        let mut trade_routes: Vec<TradeRouteView> = diplo
+            .trade_flow
+            .iter()
+            .filter(|(_, &value)| value > 0.0)
+            .filter_map(|(&(a, b), &value)| {
+                Some(TradeRouteView {
+                    a: nation_id_of.get(&a)?.clone(),
+                    b: nation_id_of.get(&b)?.clone(),
+                    value,
+                })
+            })
+            .collect();
+        trade_routes.sort_by(|x, y| y.value.total_cmp(&x.value));
         let wars = warfront
             .wars
             .iter()
@@ -421,7 +484,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
             set.insert(w.aggressor);
             set.insert(w.defender);
         }
-        (relations, wars, set)
+        (relations, wars, set, trade_routes)
     };
 
     // --- assemble the per-nation views ---
@@ -539,6 +602,19 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         })
         .collect();
 
+    // --- population by class (Phase 10): size-weighted means from the pop accumulators ---
+    let mut population: Vec<PopClassView> = pop_class
+        .iter()
+        .map(|(&prof, &(size, wealth, lit, hap))| PopClassView {
+            profession: format!("{:?}", prof),
+            size,
+            income: if size > 0.0 { wealth / size } else { 0.0 },
+            literacy: if size > 0.0 { lit / size } else { 0.0 },
+            happiness: if size > 0.0 { hap / size } else { 0.0 },
+        })
+        .collect();
+    population.sort_by(|a, b| b.size.total_cmp(&a.size));
+
     WorldSnapshot {
         clock,
         nations,
@@ -554,6 +630,8 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         military,
         wars,
         labor,
+        trade_routes,
+        population,
     }
 }
 

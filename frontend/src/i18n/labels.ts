@@ -42,6 +42,18 @@ const RELATION_KO: Record<string, string> = {
   hostile: "적대",
 };
 
+/** Professions / population classes — mirrors `Profession` in backend/src/components.rs. */
+const PROFESSION_KO: Record<string, string> = {
+  Farmer: "농민",
+  Laborer: "노동자",
+  Merchant: "상인",
+  Engineer: "기술자",
+  Researcher: "과학자",
+  Soldier: "군인",
+  Bureaucrat: "관료",
+  Unemployed: "실업자",
+};
+
 /** Production tiers used by the market panel. */
 const TIER_KO: Record<string, string> = {
   raw: "원자재",
@@ -68,6 +80,7 @@ const CLIMATE_KO: Record<string, string> = {
 };
 
 export const goodLabel = (g: string): string => GOOD_KO[g] ?? g;
+export const professionLabel = (p: string): string => PROFESSION_KO[p] ?? p;
 export const governmentLabel = (g: string): string => GOVERNMENT_KO[g] ?? g;
 export const relationLabel = (s: string): string => RELATION_KO[s] ?? s;
 export const tierLabel = (t: string): string => TIER_KO[t] ?? t;

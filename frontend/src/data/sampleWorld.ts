@@ -106,4 +106,25 @@ export const sampleWorld: WorldView = {
     { nationId: "nordheim", power: 432, strength: 120, exhaustion: 0, atWar: false },
   ],
   wars: [],
+  // Phase 9 trade network. Routes are undirected pair totals of this month's
+  // cross-border commerce. The allied industrial powers run the fattest lane;
+  // thin-industry Khoresan buys from both to feed its factories and welfare.
+  tradeRoutes: [
+    { a: "aurelia", b: "nordheim", value: 32_000 },
+    { a: "khoresan", b: "nordheim", value: 18_000 },
+    { a: "aurelia", b: "khoresan", value: 16_000 },
+  ],
+  // Phase 10 POP dashboard. Worldwide per-class aggregates; income is average
+  // wealth, education is literacy. Engineers and researchers are the literate,
+  // better-paid industrial classes; farmers and the unemployed sit at the bottom.
+  population: [
+    { profession: "Laborer", size: 280_000, income: 1.1, literacy: 0.6, happiness: 0.58 },
+    { profession: "Farmer", size: 210_000, income: 0.9, literacy: 0.45, happiness: 0.55 },
+    { profession: "Engineer", size: 150_000, income: 3.7, literacy: 0.82, happiness: 0.66 },
+    { profession: "Soldier", size: 70_000, income: 1.6, literacy: 0.55, happiness: 0.6 },
+    { profession: "Researcher", size: 28_000, income: 4.2, literacy: 0.95, happiness: 0.7 },
+    { profession: "Merchant", size: 26_000, income: 3.2, literacy: 0.78, happiness: 0.64 },
+    { profession: "Unemployed", size: 20_000, income: 0.4, literacy: 0.5, happiness: 0.3 },
+    { profession: "Bureaucrat", size: 18_000, income: 2.5, literacy: 0.88, happiness: 0.62 },
+  ],
 };

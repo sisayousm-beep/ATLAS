@@ -78,7 +78,7 @@ pub struct Pop {
     pub region: Entity,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profession {
     Farmer,
     Laborer,

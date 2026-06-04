@@ -156,6 +156,27 @@ export interface WarView {
   defender: string;
 }
 
+export interface TradeRouteView {
+  /** The two nations, matching `NationView.id`. The pair is undirected. */
+  a: string;
+  b: string;
+  /** Cross-border trade value between the pair, accumulated this month. */
+  value: number;
+}
+
+export interface PopClassView {
+  /** Profession name (English enum), e.g. "Laborer". */
+  profession: string;
+  /** Total heads in this class, worldwide. */
+  size: number;
+  /** Size-weighted average wealth — the class's income proxy. */
+  income: number;
+  /** Size-weighted average literacy (education), 0..1. */
+  literacy: number;
+  /** Size-weighted average happiness, 0..1. */
+  happiness: number;
+}
+
 export interface WorldView {
   nations: NationView[];
   regions: RegionView[];
@@ -181,6 +202,10 @@ export interface WorldView {
   military: MilitaryView[];
   /** Active wars between nations (Phase 6, §15). Empty when the world is at peace. */
   wars: WarView[];
+  /** Cross-border trade routes between nation pairs (Phase 9 trade network). */
+  tradeRoutes: TradeRouteView[];
+  /** Population by class, worldwide (Phase 10 POP dashboard). */
+  population: PopClassView[];
 }
 
 /** The game clock, for the Phase 1 loop viewer. */
