@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text, Rectangle } from "pixi.js";
 import type { WorldView } from "../types";
+import { MODE_COLOR, nationCentroids, routeMode } from "./tradeRoutes";
 
 /** What the player has currently selected on the map (UI roadmap Phase 3). */
 export type Selection =
@@ -11,6 +12,8 @@ export type Selection =
 interface Props {
   world: WorldView;
   selected: Selection;
+  /** Phase 9+: draw the live trade-route network over the map (유통.md overlay). */
+  showTrade: boolean;
   onSelectRegion: (id: number) => void;
   onSelectNation: (id: string) => void;
   onClear: () => void;
@@ -33,7 +36,7 @@ const GRID = 100;
  * input handlers are built once on mount; only the contents are redrawn when a
  * new world snapshot or a new selection arrives, so the camera survives both.
  */
-export function AtlasMap({ world, selected, onSelectRegion, onSelectNation, onClear }: Props) {
+export function AtlasMap({ world, selected, showTrade, onSelectRegion, onSelectNation, onClear }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const cameraRef = useRef<Container | null>(null);
@@ -45,6 +48,8 @@ export function AtlasMap({ world, selected, onSelectRegion, onSelectNation, onCl
   worldRef.current = world;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+  const showTradeRef = useRef(showTrade);
+  showTradeRef.current = showTrade;
   const onSelectRegionRef = useRef(onSelectRegion);
   onSelectRegionRef.current = onSelectRegion;
   const onSelectNationRef = useRef(onSelectNation);
@@ -101,6 +106,31 @@ export function AtlasMap({ world, selected, onSelectRegion, onSelectNation, onCl
           onSelectNationRef.current(region.nationId);
         });
         camera.addChild(land);
+      }
+
+      // --- trade routes (유통.md Trade Overlay): a line per nation-pair lane, drawn
+      // between the nations' region centroids. Colour = transport mode, thickness ∝
+      // this month's volume. Sits over the territory but under the region nodes, and
+      // is non-interactive so it never steals a node/territory click. ---
+      if (showTradeRef.current && w.tradeRoutes.length > 0) {
+        const centroids = nationCentroids(w);
+        const maxValue = w.tradeRoutes.reduce((m, r) => Math.max(m, r.value), 0);
+        const routes = new Container();
+        routes.eventMode = "none";
+        for (const r of w.tradeRoutes) {
+          const a = centroids.get(r.a);
+          const b = centroids.get(r.b);
+          if (!a || !b) continue;
+          const color = MODE_COLOR[routeMode(r, centroids)];
+          const width = 2 + (maxValue > 0 ? r.value / maxValue : 0) * 14;
+          const lane = new Graphics();
+          lane
+            .moveTo(a.x * WORLD_W, a.y * WORLD_H)
+            .lineTo(b.x * WORLD_W, b.y * WORLD_H)
+            .stroke({ color, width, alpha: 0.72, cap: "round" });
+          routes.addChild(lane);
+        }
+        camera.addChild(routes);
       }
 
       // --- region nodes: nation-coloured, sized by population, labelled; click → select region ---
@@ -256,7 +286,7 @@ export function AtlasMap({ world, selected, onSelectRegion, onSelectNation, onCl
   // camera keeps its transform, so the player's pan/zoom is untouched.
   useEffect(() => {
     drawRef.current();
-  }, [world, selected]);
+  }, [world, selected, showTrade]);
 
   return <div ref={hostRef} className="atlas-map" />;
 }

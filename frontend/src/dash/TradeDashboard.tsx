@@ -7,12 +7,16 @@
 // trade value, so the player can read where the world's goods flow (완료 조건:
 // 세계 경제 흐름 확인 가능).
 //
-// Transport modes (해운 / 철도 / 도로) are not modelled by the engine — the
-// logistics layer ships on a single infrastructure factor — so they are surfaced
-// as "not yet modelled" rather than faked, as with the company dashboard's R&D.
+// Transport modes (해운 / 철도 / 도로 / 항공) are not separately modelled by the
+// engine — the logistics layer ships on a single infrastructure factor — so each
+// lane's tier is a presentation-layer attribute (유통.md): explicit in the sample
+// world, inferred from nation separation for live data. The same classification
+// drives the colours here and the trade overlay on the world map, so the two read
+// alike.
 
 import { useEffect } from "react";
 import type { WorldView } from "../types";
+import { MODE_CSS, MODE_LABEL, MODE_ORDER, nationCentroids, routeMode } from "../map/tradeRoutes";
 import { compact, signed } from "../i18n/format";
 
 interface Props {
@@ -40,6 +44,10 @@ export function TradeDashboard({ world, onClose }: Props) {
   const routes = world.tradeRoutes;
   const monthVolume = routes.reduce((s, r) => s + r.value, 0);
   const maxRoute = routes.reduce((m, r) => Math.max(m, r.value), 0);
+
+  // Transport tier per lane, shared with the map overlay so colours match.
+  const centroids = nationCentroids(world);
+  const usedModes = MODE_ORDER.filter((m) => routes.some((r) => routeMode(r, centroids) === m));
 
   // Per-nation trade balance, busiest traders first.
   const rows = [...world.economy].sort(
@@ -104,8 +112,8 @@ export function TradeDashboard({ world, onClose }: Props) {
                     y1={a.y}
                     x2={b.x}
                     y2={b.y}
-                    stroke="#5fb98a"
-                    strokeOpacity={0.55}
+                    stroke={MODE_CSS[routeMode(r, centroids)]}
+                    strokeOpacity={0.7}
                     strokeWidth={w}
                     strokeLinecap="round"
                   />
@@ -124,6 +132,17 @@ export function TradeDashboard({ world, onClose }: Props) {
               })}
             </svg>
           </div>
+
+          {usedModes.length > 0 && (
+            <div className="trade-legend">
+              {usedModes.map((m) => (
+                <span className="trade-legend-item" key={m}>
+                  <span className="trade-legend-swatch" style={{ background: MODE_CSS[m] }} />
+                  {MODE_LABEL[m]}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="dash-sub">국가별 무역 수지</div>
           <div className="trade-table">
@@ -153,27 +172,37 @@ export function TradeDashboard({ world, onClose }: Props) {
             <>
               <div className="dash-sub">교역로 (이번 달)</div>
               <div className="route-list">
-                {routes.map((r) => (
-                  <div key={`${r.a}-${r.b}`} className="route-row">
-                    <span className="route-pair">
-                      {nationName(r.a)} <span className="route-link">↔</span> {nationName(r.b)}
-                    </span>
-                    <span className="route-bar">
-                      <span
-                        className="route-bar-fill"
-                        style={{ width: `${maxRoute > 0 ? (r.value / maxRoute) * 100 : 0}%` }}
-                      />
-                    </span>
-                    <span className="trade-num">{compact(r.value)}</span>
-                  </div>
-                ))}
+                {routes.map((r) => {
+                  const mode = routeMode(r, centroids);
+                  return (
+                    <div key={`${r.a}-${r.b}`} className="route-row">
+                      <span className="route-pair">
+                        {nationName(r.a)} <span className="route-link">↔</span> {nationName(r.b)}
+                        <span className="route-mode" style={{ color: MODE_CSS[mode] }}>
+                          {MODE_LABEL[mode]}
+                        </span>
+                      </span>
+                      <span className="route-bar">
+                        <span
+                          className="route-bar-fill"
+                          style={{
+                            width: `${maxRoute > 0 ? (r.value / maxRoute) * 100 : 0}%`,
+                            background: MODE_CSS[mode],
+                          }}
+                        />
+                      </span>
+                      <span className="trade-num">{compact(r.value)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
 
           <p className="dash-note">
             수출·수입은 게임 시작 이후 누적 · 교역로는 이번 달 국경 간 교역액(방향 무관) ·
-            해운/철도/도로 수송 모드는 차기 단계(post-MVP).
+            색상은 수송 모드(해운/철도/도로/항공), 지도 오버레이와 동일 · 엔진은 단일 인프라
+            계수로 운송하므로 모드는 표시용 분류(국가 간 거리 기준 추정).
           </p>
         </div>
       </div>

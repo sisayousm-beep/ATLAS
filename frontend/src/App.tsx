@@ -11,6 +11,7 @@ import { MarketDashboard } from "./dash/MarketDashboard";
 import { CompanyDashboard } from "./dash/CompanyDashboard";
 import { TradeDashboard } from "./dash/TradeDashboard";
 import { PopulationDashboard } from "./dash/PopulationDashboard";
+import { MODE_CSS, MODE_LABEL, MODE_ORDER, nationCentroids, routeMode } from "./map/tradeRoutes";
 import { compact } from "./i18n/format";
 
 const SPEEDS = [1, 2, 5];
@@ -44,6 +45,9 @@ export default function App() {
   const [tradeOpen, setTradeOpen] = useState(false);
   // Phase 10: whether the population dashboard is open.
   const [popOpen, setPopOpen] = useState(false);
+  // 유통.md Trade Overlay: whether trade routes are drawn on the world map. On by
+  // default so the network is visible the moment the map loads.
+  const [showTrade, setShowTrade] = useState(true);
 
   useEffect(() => {
     void init();
@@ -74,6 +78,12 @@ export default function App() {
   const population = world.regions
     .filter((r) => !focusId || r.nationId === focusId)
     .reduce((s, r) => s + r.population, 0);
+
+  // Transport modes present on the map this tick, for the overlay legend.
+  const tradeCentroids = nationCentroids(world);
+  const tradeModes = MODE_ORDER.filter((m) =>
+    world.tradeRoutes.some((r) => routeMode(r, tradeCentroids) === m),
+  );
 
   return (
     <div className="app">
@@ -120,6 +130,14 @@ export default function App() {
           👥 인구
         </button>
 
+        <button
+          className={`ctrl ${showTrade ? "active" : ""}`}
+          onClick={() => setShowTrade((v) => !v)}
+          aria-pressed={showTrade}
+        >
+          🧭 교역로
+        </button>
+
         <div className="kpis">
           <span className="kpi-focus">{focusName}</span>
           <Kpi label="GDP" value={compact(gdp)} />
@@ -134,10 +152,24 @@ export default function App() {
         <AtlasMap
           world={world}
           selected={selection}
+          showTrade={showTrade}
           onSelectRegion={(id) => setSelection({ kind: "region", id })}
           onSelectNation={(id) => setSelection({ kind: "nation", id })}
           onClear={() => setSelection(null)}
         />
+        {showTrade && tradeModes.length > 0 && (
+          <div className="map-legend" role="img" aria-label="교역로 운송수단 범례">
+            <span className="map-legend-title">교역로 · 굵기 = 물동량</span>
+            <div className="map-legend-items">
+              {tradeModes.map((m) => (
+                <span className="map-legend-item" key={m}>
+                  <span className="map-legend-swatch" style={{ background: MODE_CSS[m] }} />
+                  {MODE_LABEL[m]}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="map-hint">스크롤: 확대/축소 · 드래그: 이동 · 클릭: 선택</div>
         <NotificationFeed />
         <Inspector

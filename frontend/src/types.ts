@@ -156,12 +156,20 @@ export interface WarView {
   defender: string;
 }
 
+/** Transport tier a lane ships on (유통.md 운송 계층). Drawn on the map in the
+ * 유통.md palette: 도로 회색 · 철도 노란색 · 해운 파란색 · 항공 하늘색. */
+export type TransportMode = "road" | "rail" | "sea" | "air";
+
 export interface TradeRouteView {
   /** The two nations, matching `NationView.id`. The pair is undirected. */
   a: string;
   b: string;
   /** Cross-border trade value between the pair, accumulated this month. */
   value: number;
+  /** Transport tier this lane mostly ships on. Optional: the engine ships on a
+   *  single infrastructure factor, so live routes omit it and the client infers
+   *  the tier from how far apart the two nations sit (see map/tradeRoutes.ts). */
+  mode?: TransportMode;
 }
 
 export interface PopClassView {

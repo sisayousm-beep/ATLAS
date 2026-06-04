@@ -79,6 +79,13 @@ body {
   color: #e6e9f5;
 }
 
+/* A .ctrl acting as a toggle (e.g. the trade-overlay switch) when engaged. */
+.ctrl.active {
+  background: #2d3a6b;
+  border-color: #3a4a82;
+  color: #e6e9f5;
+}
+
 .mode {
   font-size: 11px;
   letter-spacing: 0.5px;
@@ -159,6 +166,44 @@ body {
   color: #8b93b8;
   font-size: 11px;
   pointer-events: none;
+}
+
+/* 유통.md Trade Overlay: transport-mode legend for the on-map trade routes,
+   pinned to the stage's top-left corner. */
+.map-legend {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(11, 16, 33, 0.78);
+  border: 1px solid #1c2340;
+  pointer-events: none;
+}
+.map-legend-title {
+  display: block;
+  color: #8b93b8;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.map-legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #c5cbe6;
+  font-size: 12px;
+}
+.map-legend-swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
 }
 
 /* Phase 4: the right-hand panel hosts the active left-menu screen's content. */
@@ -1143,6 +1188,32 @@ body {
 .trade-node-label {
   fill: #c5cbe6;
   font-size: 4px;
+  font-weight: 600;
+}
+/* Transport-mode legend under the network, matching the on-map overlay. */
+.trade-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+.trade-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #c5cbe6;
+  font-size: 12px;
+}
+.trade-legend-swatch {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+/* Per-lane transport-mode tag in the route list. */
+.route-mode {
+  margin-left: 8px;
+  font-size: 11px;
   font-weight: 600;
 }
 .trade-table {

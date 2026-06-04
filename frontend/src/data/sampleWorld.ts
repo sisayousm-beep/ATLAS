@@ -109,10 +109,13 @@ export const sampleWorld: WorldView = {
   // Phase 9 trade network. Routes are undirected pair totals of this month's
   // cross-border commerce. The allied industrial powers run the fattest lane;
   // thin-industry Khoresan buys from both to feed its factories and welfare.
+  // `mode` is the transport tier each lane mostly ships on (유통.md), illustrative
+  // here: Aurelia's port carries the bulk maritime lane, the land neighbours rail,
+  // and the low-infra Khoresan border runs on road.
   tradeRoutes: [
-    { a: "aurelia", b: "nordheim", value: 32_000 },
-    { a: "khoresan", b: "nordheim", value: 18_000 },
-    { a: "aurelia", b: "khoresan", value: 16_000 },
+    { a: "aurelia", b: "nordheim", value: 32_000, mode: "sea" },
+    { a: "khoresan", b: "nordheim", value: 18_000, mode: "rail" },
+    { a: "aurelia", b: "khoresan", value: 16_000, mode: "road" },
   ],
   // Phase 10 POP dashboard. Worldwide per-class aggregates; income is average
   // wealth, education is literacy. Engineers and researchers are the literate,
