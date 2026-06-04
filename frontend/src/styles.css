@@ -689,3 +689,235 @@ body {
 .insp-link:hover {
   background: #131a32;
 }
+
+/* --- Phase 5: Nation Dashboard — full-screen nation management overlay --- */
+.insp-dashboard {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  background: #1b2444;
+  border: 1px solid #2d3a6b;
+  color: #e6e9f5;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.insp-dashboard:hover {
+  background: #243056;
+}
+
+.dash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(4, 6, 14, 0.72);
+}
+
+.dash {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 100%);
+  max-height: 100%;
+  border-radius: 8px;
+  background: #0b1021;
+  border: 1px solid #1c2340;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.dash-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #1c2340;
+}
+.dash-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.dash-gov {
+  color: #8b93b8;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+.dash-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #8b93b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.dash-close:hover {
+  color: #e6e9f5;
+}
+
+.dash-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid #1c2340;
+}
+.dash-tab {
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8b93b8;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dash-tab:hover {
+  color: #c5cbe6;
+}
+.dash-tab.active {
+  color: #e6e9f5;
+  border-bottom-color: #5fb98a;
+}
+
+.dash-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Overview KPI grid. */
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.dash-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 6px;
+  background: #0e1430;
+  border: 1px solid #1c2340;
+}
+.dash-kpi-label {
+  color: #8b93b8;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.dash-kpi-value {
+  color: #e6e9f5;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stat list, shared by the economy / population / politics screens. */
+.dash-stats {
+  margin: 0 0 20px;
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 10px 16px;
+  align-items: center;
+}
+.dash-stats > div {
+  display: contents;
+}
+.dash-stats dt {
+  color: #8b93b8;
+  font-size: 12px;
+}
+.dash-stats dd {
+  margin: 0;
+  text-align: right;
+  color: #e6e9f5;
+  font-variant-numeric: tabular-nums;
+}
+.dash-stats dd.neg {
+  color: #e0686d;
+}
+
+.dash-sub {
+  margin: 22px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid #1c2340;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #8b93b8;
+}
+
+.dash-rel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: #0e1430;
+  border: 1px solid #1c2340;
+  color: #c5cbe6;
+  font: inherit;
+  cursor: pointer;
+}
+.dash-rel:hover {
+  background: #131a32;
+}
+
+.dash-note {
+  margin: 12px 0 0;
+  color: #6b7398;
+  font-size: 12px;
+}
+
+/* Charts (inline SVG line charts). */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.chart-card {
+  padding: 12px;
+  border-radius: 6px;
+  background: #0e1430;
+  border: 1px solid #1c2340;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.chart-title {
+  color: #8b93b8;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.chart-value {
+  color: #e6e9f5;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chart {
+  display: block;
+  width: 100%;
+  height: 64px;
+}
+.chart-empty {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7398;
+  font-size: 12px;
+}

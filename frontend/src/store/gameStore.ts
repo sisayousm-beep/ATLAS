@@ -12,12 +12,26 @@ import { diffWorld } from "../bus/notifications";
 
 /** Most recent notifications kept in the feed. */
 const FEED_LIMIT = 30;
+/** Months of per-nation history kept for the Phase 5 dashboard charts (~10y). */
+const HISTORY_LIMIT = 120;
+
+/** One month's headline figures for a nation (Phase 5 dashboard charts). */
+export interface NationSample {
+  year: number;
+  month: number;
+  gdp: number;
+  debt: number;
+  inflation: number;
+  happiness: number;
+}
 
 interface GameState {
   world: WorldSnapshot | null;
   status: SimStatus;
   /** Recent feed entries, newest first (Phase 4 notification feed). */
   notifications: GameNotification[];
+  /** Per-nation monthly history, oldest first (Phase 5 dashboard charts). */
+  history: Record<string, NationSample[]>;
   /** True when driven by the real engine, false on the browser mock. */
   live: boolean;
   ready: boolean;
@@ -29,11 +43,42 @@ interface GameState {
 
 let adapter: SimAdapter | null = null;
 let notifId = 1;
+/** Last month appended to history, so each month is recorded once. */
+let lastMonthKey: number | null = null;
+
+/** Append this month's figures to each nation's history, once per game month.
+ * Returns the same map when the month is unchanged, so charts don't churn. */
+function appendHistory(
+  hist: Record<string, NationSample[]>,
+  world: WorldSnapshot,
+): Record<string, NationSample[]> {
+  const key = world.clock.year * 12 + world.clock.month;
+  if (key === lastMonthKey) return hist;
+  lastMonthKey = key;
+
+  const next: Record<string, NationSample[]> = {};
+  for (const n of world.nations) {
+    const econ = world.economy.find((e) => e.nationId === n.id);
+    const fin = world.finance.find((f) => f.nationId === n.id);
+    const pol = world.politics.find((p) => p.nationId === n.id);
+    const point: NationSample = {
+      year: world.clock.year,
+      month: world.clock.month,
+      gdp: econ?.gdp ?? 0,
+      debt: fin?.debt ?? 0,
+      inflation: fin?.inflation ?? 0,
+      happiness: pol?.happiness ?? 0,
+    };
+    next[n.id] = [...(hist[n.id] ?? []), point].slice(-HISTORY_LIMIT);
+  }
+  return next;
+}
 
 export const useGameStore = create<GameState>((set, get) => ({
   world: null,
   status: { paused: false, speed: 1 },
   notifications: [],
+  history: {},
   live: false,
   ready: false,
 
@@ -42,13 +87,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     adapter = createAdapter();
 
     const [status, world] = await Promise.all([adapter.getStatus(), adapter.getWorld()]);
-    set({ status, world, live: adapter.live, ready: true });
+    set({ status, world, live: adapter.live, ready: true, history: appendHistory({}, world) });
     bus.emit("world", world);
     bus.emit("tick", world.clock);
 
     await adapter.onWorld((w) => {
       const prev = get().world;
-      set({ world: w });
+      set({ world: w, history: appendHistory(get().history, w) });
       if (prev) {
         const raised = diffWorld(prev, w).map((r) => ({ ...r, id: notifId++ }));
         if (raised.length > 0) {

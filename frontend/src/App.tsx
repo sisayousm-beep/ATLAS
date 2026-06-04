@@ -5,6 +5,7 @@ import { Inspector } from "./inspect/Inspector";
 import { LeftNav, type HudTab } from "./hud/LeftNav";
 import { Panel } from "./hud/Panel";
 import { NotificationFeed } from "./hud/NotificationFeed";
+import { NationDashboard, type DashTab } from "./dash/NationDashboard";
 import { compact } from "./i18n/format";
 
 const SPEEDS = [1, 2, 5];
@@ -13,6 +14,7 @@ export default function App() {
   const world = useGameStore((s) => s.world);
   const status = useGameStore((s) => s.status);
   const live = useGameStore((s) => s.live);
+  const history = useGameStore((s) => s.history);
   const init = useGameStore((s) => s.init);
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);
@@ -22,6 +24,9 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   // Phase 4: which left-menu screen the right panel is showing.
   const [tab, setTab] = useState<HudTab>("overview");
+  // Phase 5: the nation whose dashboard is open (full-screen), and its sub-tab.
+  const [dashNation, setDashNation] = useState<string | null>(null);
+  const [dashTab, setDashTab] = useState<DashTab>("overview");
 
   useEffect(() => {
     void init();
@@ -103,6 +108,7 @@ export default function App() {
           selection={selection}
           onSelectRegion={(id) => setSelection({ kind: "region", id })}
           onSelectNation={(id) => setSelection({ kind: "nation", id })}
+          onOpenDashboard={(id) => setDashNation(id)}
           onClose={() => setSelection(null)}
         />
       </main>
@@ -113,6 +119,18 @@ export default function App() {
         selection={selection}
         onSelectNation={(id) => setSelection({ kind: "nation", id })}
       />
+
+      {dashNation && (
+        <NationDashboard
+          world={world}
+          history={history[dashNation] ?? []}
+          nationId={dashNation}
+          tab={dashTab}
+          onTab={setDashTab}
+          onSelectNation={setDashNation}
+          onClose={() => setDashNation(null)}
+        />
+      )}
     </div>
   );
 }

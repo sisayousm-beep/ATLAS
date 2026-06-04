@@ -111,6 +111,16 @@ pub struct PoliticsView {
     pub government: String,
     pub stability: f64,
     pub unrest: f64,
+    /// Population-weighted average happiness, 0..1 (drives stability, design §13).
+    pub happiness: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TechnologyView {
+    pub nation_id: String,
+    /// Aggregate technology level index (design §12, §17).
+    pub level: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -150,6 +160,7 @@ pub struct WorldSnapshot {
     pub finance: Vec<FinanceView>,
     pub crisis: bool,
     pub politics: Vec<PoliticsView>,
+    pub technology: Vec<TechnologyView>,
     pub relations: Vec<RelationView>,
     pub military: Vec<MilitaryView>,
     pub wars: Vec<WarView>,
@@ -250,16 +261,23 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         *nation_gdp.entry(r.owner).or_default() += region_gdp.get(&r.e).copied().unwrap_or(0.0);
     }
 
-    // --- pops: population per region, soldier manpower per nation ---
+    // --- pops: population per region, soldier manpower + happiness per nation ---
     let mut pop_by_region: HashMap<Entity, u64> = HashMap::new();
     let mut soldiers_by_nation: HashMap<Entity, f64> = HashMap::new();
+    // Per nation: total heads and happiness-weighted heads (mirrors the politics
+    // system's stability input, design §13).
+    let mut heads_by_nation: HashMap<Entity, f64> = HashMap::new();
+    let mut happy_by_nation: HashMap<Entity, f64> = HashMap::new();
     {
         let mut q = world.query::<&Pop>();
         for pop in q.iter(world) {
             *pop_by_region.entry(pop.region).or_default() += pop.size as u64;
-            if pop.profession == Profession::Soldier {
-                if let Some(&owner) = region_owner.get(&pop.region) {
-                    *soldiers_by_nation.entry(owner).or_default() += pop.size as f64;
+            if let Some(&owner) = region_owner.get(&pop.region) {
+                let size = pop.size as f64;
+                *heads_by_nation.entry(owner).or_default() += size;
+                *happy_by_nation.entry(owner).or_default() += pop.happiness * size;
+                if pop.profession == Profession::Soldier {
+                    *soldiers_by_nation.entry(owner).or_default() += size;
                 }
             }
         }
@@ -363,12 +381,22 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         .collect();
     let politics: Vec<PoliticsView> = nats
         .iter()
-        .map(|n| PoliticsView {
-            nation_id: nation_id(&n.name),
-            government: format!("{:?}", n.gov),
-            stability: n.stability,
-            unrest: n.unrest,
+        .map(|n| {
+            let heads = heads_by_nation.get(&n.e).copied().unwrap_or(0.0);
+            let happiness =
+                if heads > 0.0 { happy_by_nation.get(&n.e).copied().unwrap_or(0.0) / heads } else { 0.0 };
+            PoliticsView {
+                nation_id: nation_id(&n.name),
+                government: format!("{:?}", n.gov),
+                stability: n.stability,
+                unrest: n.unrest,
+                happiness,
+            }
         })
+        .collect();
+    let technology: Vec<TechnologyView> = nats
+        .iter()
+        .map(|n| TechnologyView { nation_id: nation_id(&n.name), level: n.tech })
         .collect();
     let military: Vec<MilitaryView> = nats
         .iter()
@@ -426,6 +454,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         finance,
         crisis,
         politics,
+        technology,
         relations,
         military,
         wars,

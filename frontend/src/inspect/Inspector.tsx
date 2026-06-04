@@ -20,6 +20,8 @@ interface Props {
   selection: Selection;
   onSelectRegion: (id: number) => void;
   onSelectNation: (id: string) => void;
+  /** Open the Phase 5 full-screen dashboard for a nation. */
+  onOpenDashboard: (id: string) => void;
   onClose: () => void;
 }
 
@@ -38,7 +40,14 @@ function Meter({ value }: { value: number }) {
   );
 }
 
-export function Inspector({ world, selection, onSelectRegion, onSelectNation, onClose }: Props) {
+export function Inspector({
+  world,
+  selection,
+  onSelectRegion,
+  onSelectNation,
+  onOpenDashboard,
+  onClose,
+}: Props) {
   if (!selection) return null;
 
   if (selection.kind === "region") {
@@ -128,6 +137,10 @@ export function Inspector({ world, selection, onSelectRegion, onSelectNation, on
           ✕
         </button>
       </header>
+
+      <button className="insp-dashboard" onClick={() => onOpenDashboard(nation.id)}>
+        국가 대시보드 ↗
+      </button>
 
       <dl className="insp-stats">
         <div>

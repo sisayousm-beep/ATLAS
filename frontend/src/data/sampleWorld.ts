@@ -65,9 +65,16 @@ export const sampleWorld: WorldView = {
   // sits on a poorer, inflation-bitten populace, so stability sags and unrest runs
   // hot — the kind of pressure that, sustained, tips into a coup.
   politics: [
-    { nationId: "aurelia", government: "Democracy", stability: 0.82, unrest: 0.18 },
-    { nationId: "khoresan", government: "Autocracy", stability: 0.46, unrest: 0.54 },
-    { nationId: "nordheim", government: "Monarchy", stability: 0.71, unrest: 0.29 },
+    { nationId: "aurelia", government: "Democracy", stability: 0.82, unrest: 0.18, happiness: 0.7 },
+    { nationId: "khoresan", government: "Autocracy", stability: 0.46, unrest: 0.54, happiness: 0.42 },
+    { nationId: "nordheim", government: "Monarchy", stability: 0.71, unrest: 0.29, happiness: 0.63 },
+  ],
+  // Phase 7 research: scientific Nordheim has climbed the ladder past its
+  // neighbours (design §12); aggressive Khoresan lags, diplomatic Aurelia holds.
+  technology: [
+    { nationId: "aurelia", level: 1.0 },
+    { nationId: "khoresan", level: 0.8 },
+    { nationId: "nordheim", level: 1.3 },
   ],
   // Commerce binds the two industrial powers into an alliance despite the
   // democracy/monarchy divide; the authoritarian pair keeps a cool neutrality;

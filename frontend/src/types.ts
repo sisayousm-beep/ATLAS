@@ -91,6 +91,15 @@ export interface PoliticsView {
   stability: number;
   /** Unrest, 0..1 — the mirror of stability. */
   unrest: number;
+  /** Population-weighted average happiness, 0..1 (drives stability, design §13). */
+  happiness: number;
+}
+
+export interface TechnologyView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Aggregate technology level index (design §12, §17). */
+  level: number;
 }
 
 export type RelationStatus = "ally" | "neutral" | "rival" | "hostile";
@@ -139,6 +148,8 @@ export interface WorldView {
   crisis: boolean;
   /** Per-nation political state: government, stability, unrest (Phase 5, §13). */
   politics: PoliticsView[];
+  /** Per-nation technology level (design §12, §17). */
+  technology: TechnologyView[];
   /** Pairwise relations between nations (Phase 5, §14). */
   relations: RelationView[];
   /** Per-nation armed forces: power, strength, exhaustion (Phase 6, §15). */
