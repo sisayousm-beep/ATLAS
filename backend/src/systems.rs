@@ -68,6 +68,7 @@ pub fn build_schedule() -> Schedule {
         (
             (
                 advance_clock,
+                roll_gdp,
                 produce_food,
                 extract_resources,
                 trade_goods,
@@ -104,11 +105,21 @@ pub fn advance_clock(mut clock: ResMut<GameClock>) {
     clock.day += 1;
 }
 
+/// Finalise each month's GDP (design §17): the value added across the month just
+/// ended becomes the figure the report and the client read for the month. Runs
+/// at month start, before the day's production opens a fresh month's tally.
+pub fn roll_gdp(clock: Res<GameClock>, mut gdp: ResMut<GdpLedger>) {
+    if clock.is_month_start() {
+        gdp.roll();
+    }
+}
+
 /// Farmers turn labour and land into grain, stored in their region.
 pub fn produce_food(
     pops: Query<&Pop>,
     mut regions: Query<(&Region, &mut ResourceStock)>,
     mut market: ResMut<Market>,
+    mut gdp: ResMut<GdpLedger>,
 ) {
     for pop in &pops {
         if pop.profession != Profession::Farmer {
@@ -122,6 +133,7 @@ pub fn produce_food(
             let produced = pop.size as f64 * yield_per_capita;
             stock.add(Good::Grain, produced);
             market.record_supply(Good::Grain, produced);
+            gdp.add(pop.region, produced * market.price(Good::Grain));
         }
     }
 }
@@ -133,6 +145,7 @@ pub fn extract_resources(
     pops: Query<&Pop>,
     mut regions: Query<(Entity, &Region, &Deposits, &mut ResourceStock)>,
     mut market: ResMut<Market>,
+    mut gdp: ResMut<GdpLedger>,
 ) {
     let mut labor: HashMap<Entity, f64> = HashMap::new();
     for pop in &pops {
@@ -154,6 +167,7 @@ pub fn extract_resources(
             }
             stock.add(good, amount);
             market.record_supply(good, amount);
+            gdp.add(entity, amount * market.price(good));
         }
     }
 }
@@ -276,6 +290,7 @@ pub fn corporate_production(
     mut corps: Query<&mut Corporation>,
     mut regions: Query<&mut ResourceStock>,
     mut market: ResMut<Market>,
+    mut gdp: ResMut<GdpLedger>,
 ) {
     // Engineers per region — the physical cap on how much industry can run.
     let mut engineers: HashMap<Entity, f64> = HashMap::new();
@@ -328,6 +343,9 @@ pub fn corporate_production(
             let margin = revenue - input_cost - wages;
             corp.capital += margin;
             corp.profit += margin;
+            // GDP counts the value the factory adds: its output less the inputs
+            // it consumed (design §17), so the chain isn't double-counted.
+            gdp.add(corp.region, revenue - input_cost);
             budget -= units * recipe.labor;
         }
     }
@@ -996,8 +1014,9 @@ pub fn report(
     war_led: Res<WarLedger>,
     ai_led: Res<AiLedger>,
     wars: Res<Warfront>,
+    gdp: Res<GdpLedger>,
     nations: Query<(Entity, &Nation, &CentralBank, &Politics, &Military, &NationAi)>,
-    regions: Query<(&Region, &ResourceStock)>,
+    regions: Query<(Entity, &Region, &ResourceStock)>,
     pops: Query<&Pop>,
     corps: Query<&Corporation>,
 ) {
@@ -1005,18 +1024,20 @@ pub fn report(
         return;
     }
 
-    // Aggregate population and grain per nation via region ownership.
+    // Aggregate population, grain and GDP per nation via region ownership.
     let mut population: HashMap<Entity, u64> = HashMap::new();
     let mut grain: HashMap<Entity, f64> = HashMap::new();
+    let mut gdp_by_nation: HashMap<Entity, f64> = HashMap::new();
     let mut happiness_sum: HashMap<Entity, f64> = HashMap::new();
     let mut happiness_weight: HashMap<Entity, f64> = HashMap::new();
     let mut soldiers: HashMap<Entity, f64> = HashMap::new();
 
-    for (region, stock) in &regions {
+    for (entity, region, stock) in &regions {
         *grain.entry(region.owner).or_default() += stock.get(Good::Grain);
+        *gdp_by_nation.entry(region.owner).or_default() += gdp.region(entity);
     }
     for pop in &pops {
-        if let Ok((region, _)) = regions.get(pop.region) {
+        if let Ok((_, region, _)) = regions.get(pop.region) {
             let owner = region.owner;
             *population.entry(owner).or_default() += pop.size as u64;
             *happiness_sum.entry(owner).or_default() += pop.happiness * pop.size as f64;
@@ -1061,8 +1082,9 @@ pub fn report(
             if wars.belligerent(entity) { "  ⚔ AT WAR" } else { "" }
         );
         println!(
-            "  {:<12} ai {:<10?}  tech {:>5.2}{}",
+            "  {:<12} ai {:<10?}  tech {:>5.2}  gdp {:>12.0}{}",
             "", ai.personality, nation.technology,
+            gdp_by_nation.get(&entity).copied().unwrap_or(0.0),
             if in_survival(nation.stability) { "  ⚑ SURVIVAL" } else { "" }
         );
     }
@@ -1090,6 +1112,11 @@ pub fn report(
     }
     println!("  trade volume: steel {:>8.0}  car {:>8.0}  total value {:>12.0}",
         ledger.volume(Good::Steel), ledger.volume(Good::Car), ledger.value);
+
+    // Economy (design §17): world GDP — the value added across every region this
+    // month. The race for first place is the game's economic-victory condition.
+    let world_gdp: f64 = gdp_by_nation.values().sum();
+    println!("  economy: world GDP {:>12.0}", world_gdp);
 
     // Finance dashboard (design §11): world money, debt, top rate, mean inflation.
     println!(

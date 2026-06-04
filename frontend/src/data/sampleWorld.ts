@@ -11,11 +11,11 @@ export const sampleWorld: WorldView = {
   ],
   // terrain/climate/infra/deposits mirror backend/src/world_gen.rs.
   regions: [
-    { id: 1, name: "Goldfields", nationId: "aurelia", population: 220_000, terrain: "Plains", climate: "Temperate", infrastructure: 0.7, resources: [{ good: "IronOre", abundance: 0.8 }, { good: "Coal", abundance: 0.7 }], x: 0.22, y: 0.35 },
-    { id: 2, name: "Port Vesper", nationId: "aurelia", population: 150_000, terrain: "Coast", climate: "Temperate", infrastructure: 0.85, resources: [{ good: "Oil", abundance: 0.9 }], x: 0.32, y: 0.6 },
-    { id: 3, name: "Sandreach", nationId: "khoresan", population: 138_000, terrain: "Desert", climate: "Arid", infrastructure: 0.4, resources: [{ good: "Oil", abundance: 1.2 }], x: 0.62, y: 0.4 },
-    { id: 4, name: "Oasis Hold", nationId: "khoresan", population: 89_000, terrain: "Hills", climate: "Arid", infrastructure: 0.5, resources: [{ good: "IronOre", abundance: 0.7 }, { good: "Coal", abundance: 0.5 }], x: 0.7, y: 0.62 },
-    { id: 5, name: "Frostmark", nationId: "nordheim", population: 205_000, terrain: "Plains", climate: "Continental", infrastructure: 0.75, resources: [{ good: "IronOre", abundance: 0.9 }, { good: "Coal", abundance: 0.8 }, { good: "Oil", abundance: 0.4 }], x: 0.5, y: 0.18 },
+    { id: 1, name: "Goldfields", nationId: "aurelia", population: 220_000, terrain: "Plains", climate: "Temperate", infrastructure: 0.7, resources: [{ good: "IronOre", abundance: 0.8 }, { good: "Coal", abundance: 0.7 }], gdp: 9_500, x: 0.22, y: 0.35 },
+    { id: 2, name: "Port Vesper", nationId: "aurelia", population: 150_000, terrain: "Coast", climate: "Temperate", infrastructure: 0.85, resources: [{ good: "Oil", abundance: 0.9 }], gdp: 14_000, x: 0.32, y: 0.6 },
+    { id: 3, name: "Sandreach", nationId: "khoresan", population: 138_000, terrain: "Desert", climate: "Arid", infrastructure: 0.4, resources: [{ good: "Oil", abundance: 1.2 }], gdp: 4_200, x: 0.62, y: 0.4 },
+    { id: 4, name: "Oasis Hold", nationId: "khoresan", population: 89_000, terrain: "Hills", climate: "Arid", infrastructure: 0.5, resources: [{ good: "IronOre", abundance: 0.7 }, { good: "Coal", abundance: 0.5 }], gdp: 3_100, x: 0.7, y: 0.62 },
+    { id: 5, name: "Frostmark", nationId: "nordheim", population: 205_000, terrain: "Plains", climate: "Continental", infrastructure: 0.75, resources: [{ good: "IronOre", abundance: 0.9 }, { good: "Coal", abundance: 0.8 }, { good: "Oil", abundance: 0.4 }], gdp: 16_500, x: 0.5, y: 0.18 },
   ],
   // Snapshot near where the Phase 3 sim settles after a few months: car firms
   // pull the chain so cars stay scarce and dear, steel sits a touch below base.
@@ -41,6 +41,14 @@ export const sampleWorld: WorldView = {
     { name: "Nordheim Foundry", nationId: "nordheim", industries: ["Iron"], capital: 24_272, employees: 18_000 },
     { name: "Nordheim Steel", nationId: "nordheim", industries: ["Steel"], capital: -22_605, employees: 6_561 },
     { name: "Nordheim Motors", nationId: "nordheim", industries: ["Car"], capital: 479_942, employees: 17_000 },
+  ],
+  // Per-nation economy (design §17). GDP is the sum of the regions' value added;
+  // the two industrial powers (Aurelia, Nordheim) out-produce thin-industry
+  // Khoresan, which also runs a steep import deficit feeding others' factories.
+  economy: [
+    { nationId: "aurelia", treasury: 22_000, gdp: 23_500, exports: 48_000, imports: 22_000 },
+    { nationId: "khoresan", treasury: 0, gdp: 7_300, exports: 9_000, imports: 31_000 },
+    { nationId: "nordheim", treasury: 9_000, gdp: 16_500, exports: 41_000, imports: 19_000 },
   ],
   // Phase 4, near the year-1 sim state. Aurelia and Nordheim run fat corporate-tax
   // surpluses — stable money, zero inflation, rates cut to the floor. Khoresan's

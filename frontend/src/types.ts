@@ -27,6 +27,8 @@ export interface RegionView {
   infrastructure: number;
   /** Natural endowment: raw goods the region is rich in, with abundance. */
   resources: RegionResource[];
+  /** Value added in the region over the last month (GDP, design §17). */
+  gdp: number;
   /** Normalised layout position, each in 0..1. */
   x: number;
   y: number;
@@ -52,6 +54,19 @@ export interface CorporationView {
   /** Cash on hand; negative means the firm is bleeding. */
   capital: number;
   employees: number;
+}
+
+export interface EconomyView {
+  /** Nation the figures belong to (matches `NationView.id`). */
+  nationId: string;
+  /** Cash in the national treasury. */
+  treasury: number;
+  /** Gross domestic product: value added across the nation's regions last month. */
+  gdp: number;
+  /** Cumulative value of goods sold abroad. */
+  exports: number;
+  /** Cumulative value of goods bought from abroad. */
+  imports: number;
 }
 
 export interface FinanceView {
@@ -116,6 +131,8 @@ export interface WorldView {
   prices: GoodPrice[];
   /** Profit-seeking firms (Phase 3). */
   corporations: CorporationView[];
+  /** Per-nation economy: treasury, GDP, trade balance (design §17). */
+  economy: EconomyView[];
   /** Per-nation money: central-bank rate, inflation, debt (Phase 4). */
   finance: FinanceView[];
   /** Whether the world is in a financial crisis (Phase 4, design §11). */
@@ -147,4 +164,16 @@ export interface SimStatus {
   paused: boolean;
   /** In-game days per real second. */
   speed: number;
+}
+
+/** A feed entry raised when something notable changes between two snapshots
+ * (Phase 4 HUD notification feed). */
+export interface GameNotification {
+  id: number;
+  /** Game date the event was detected on. */
+  year: number;
+  month: number;
+  /** Visual tone: good news, bad news, or neutral. */
+  tone: "good" | "bad" | "info";
+  text: string;
 }

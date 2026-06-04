@@ -8,6 +8,7 @@
 use crate::resources::Good;
 use bevy_ecs::prelude::*;
 use std::collections::HashMap;
+use std::mem;
 
 /// A production recipe: `inputs` are consumed to yield one unit of `output`.
 /// `labor` is the engineer-labour budget spent per unit produced.
@@ -85,5 +86,41 @@ impl Market {
     pub fn clear_flows(&mut self) {
         self.supply.clear();
         self.demand.clear();
+    }
+}
+
+/// Per-region GDP (design §17 economic victory). GDP is the *value added* in
+/// production: each good's output valued at the market price, net of the
+/// intermediate inputs consumed (raw extraction and food add their full value;
+/// a factory adds revenue minus the cost of its inputs), so the production chain
+/// is never double-counted. The month in progress accumulates in `month_output`;
+/// at each month start it is rolled into `region_gdp`, the stable figure the
+/// report and the client snapshot read.
+#[derive(Resource, Debug, Default)]
+pub struct GdpLedger {
+    month_output: HashMap<Entity, f64>,
+    pub region_gdp: HashMap<Entity, f64>,
+}
+
+impl GdpLedger {
+    /// Record `value` of value-added produced in `region` today.
+    pub fn add(&mut self, region: Entity, value: f64) {
+        if value > 0.0 {
+            *self.month_output.entry(region).or_insert(0.0) += value;
+        }
+    }
+
+    /// Finalise the month: the value produced over it becomes the reported GDP.
+    pub fn roll(&mut self) {
+        self.region_gdp = mem::take(&mut self.month_output);
+    }
+
+    /// A region's GDP — the last completed month, or the month in progress
+    /// before the first roll (so GDP reads nonzero from the first days).
+    pub fn region(&self, region: Entity) -> f64 {
+        self.region_gdp
+            .get(&region)
+            .copied()
+            .unwrap_or_else(|| self.month_output.get(&region).copied().unwrap_or(0.0))
     }
 }

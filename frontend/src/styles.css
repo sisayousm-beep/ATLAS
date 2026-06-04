@@ -15,11 +15,11 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 220px;
+  grid-template-columns: 132px 1fr 248px;
   grid-template-rows: auto 1fr;
   grid-template-areas:
-    "topbar topbar"
-    "stage  legend";
+    "topbar  topbar topbar"
+    "leftnav stage  panel";
   height: 100vh;
 }
 
@@ -99,10 +99,41 @@ body {
   font-size: 14px;
 }
 
-.stat {
+/* Phase 4 top-bar KPIs: date · money · population · GDP for the focus nation
+   (or the world when nothing is selected). */
+.kpis {
   margin-left: auto;
-  color: #b9c0e0;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.kpi-focus {
+  color: #8b93b8;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding-right: 4px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+
+.kpi-label {
+  color: #8b93b8;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  color: #e6e9f5;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .stage-wrap {
@@ -130,8 +161,9 @@ body {
   pointer-events: none;
 }
 
-.legend {
-  grid-area: legend;
+/* Phase 4: the right-hand panel hosts the active left-menu screen's content. */
+.panel {
+  grid-area: panel;
   padding: 16px;
   border-left: 1px solid #1c2340;
   background: #0b1021;
@@ -139,32 +171,141 @@ body {
   overflow-y: auto;
 }
 
-.legend-row {
+/* Phase 4: left menu — the strategy client's four top-level screens. */
+.leftnav {
+  grid-area: leftnav;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px;
+  border-right: 1px solid #1c2340;
+  background: #0b1021;
 }
 
-/* Phase 3: nation legend rows double as a "select nation" control. */
-.legend-nation {
-  width: 100%;
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
+  color: #8b93b8;
+  font: inherit;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: #131a32;
+  color: #c5cbe6;
+}
+.nav-item.active {
+  background: #1b2444;
+  border-color: #2d3a6b;
+  color: #e6e9f5;
+}
+.nav-icon {
+  font-size: 18px;
+}
+.nav-label {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* Phase 4 overview: the GDP league table (design §17 economic victory). */
+.gdp-row {
+  display: grid;
+  grid-template-columns: 16px 14px 1fr auto;
+  grid-template-areas:
+    "rank swatch name value"
+    "bar  bar    bar  bar";
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  margin: 0 0 4px -6px;
+  padding: 6px;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 4px 6px;
-  margin: 0 0 4px -6px;
+  background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.legend-nation:hover {
+.gdp-row:hover {
   background: #131a32;
 }
-.legend-nation.active {
+.gdp-row.active {
   background: #1b2444;
   border-color: #2d3a6b;
+}
+.gdp-rank {
+  grid-area: rank;
+  color: #8b93b8;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.gdp-row .swatch {
+  grid-area: swatch;
+}
+.gdp-name {
+  grid-area: name;
+  color: #c5cbe6;
+}
+.gdp-value {
+  grid-area: value;
+  color: #e6e9f5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.gdp-bar-track {
+  grid-area: bar;
+  height: 5px;
+  border-radius: 3px;
+  background: #1c2340;
+  overflow: hidden;
+}
+.gdp-bar-fill {
+  display: block;
+  height: 100%;
+  background: #5fb98a;
+}
+
+/* Phase 4 notification feed: recent events pinned over the map, newest first. */
+.feed {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  pointer-events: none;
+}
+.feed-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border-left: 3px solid #2d3a6b;
+  background: rgba(11, 16, 33, 0.88);
+  font-size: 12px;
+}
+.feed-item.feed-good {
+  border-left-color: #5fb98a;
+}
+.feed-item.feed-bad {
+  border-left-color: #e0686d;
+}
+.feed-date {
+  color: #8b93b8;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.feed-text {
+  color: #e6e9f5;
 }
 
 .swatch {

@@ -10,7 +10,7 @@ use crate::corporation::Corporation;
 use crate::diplomacy::{relation_status, Diplomacy, Relation};
 use crate::finance::{CentralBank, FinanceLedger};
 use crate::politics::Politics;
-use crate::production::{base_price, Market, TRADED};
+use crate::production::{base_price, GdpLedger, Market, TRADED};
 use crate::resources::{Deposits, GameClock, Good};
 use crate::war::{military_power, Military, Warfront};
 use bevy_ecs::prelude::*;
@@ -49,6 +49,8 @@ pub struct RegionView {
     pub infrastructure: f64,
     /// Natural endowment: raw goods the region is rich in, with abundance (design §6).
     pub resources: Vec<RegionResource>,
+    /// Value added in the region over the last month (design §17 GDP).
+    pub gdp: f64,
     pub x: f64,
     pub y: f64,
 }
@@ -76,6 +78,20 @@ pub struct CorporationView {
     pub industries: Vec<String>,
     pub capital: f64,
     pub employees: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct EconomyView {
+    pub nation_id: String,
+    /// Cash in the national treasury.
+    pub treasury: f64,
+    /// Gross domestic product: value added across the nation's regions last month.
+    pub gdp: f64,
+    /// Cumulative value of goods sold abroad (Phase 3 trade balance).
+    pub exports: f64,
+    /// Cumulative value of goods bought from abroad.
+    pub imports: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -130,6 +146,7 @@ pub struct WorldSnapshot {
     pub regions: Vec<RegionView>,
     pub prices: Vec<GoodPrice>,
     pub corporations: Vec<CorporationView>,
+    pub economy: Vec<EconomyView>,
     pub finance: Vec<FinanceView>,
     pub crisis: bool,
     pub politics: Vec<PoliticsView>,
@@ -154,7 +171,10 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         tech: f64,
         stability: f64,
         inflation: f64,
+        treasury: f64,
         debt: f64,
+        exports: f64,
+        imports: f64,
         rate: f64,
         money: f64,
         strength: f64,
@@ -172,7 +192,10 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 tech: n.technology,
                 stability: n.stability,
                 inflation: n.inflation,
+                treasury: n.treasury,
                 debt: n.debt,
+                exports: n.exports,
+                imports: n.imports,
                 rate: b.policy_rate,
                 money: b.money_supply,
                 strength: m.strength,
@@ -216,6 +239,16 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         }
     }
     let region_owner: HashMap<Entity, Entity> = regs.iter().map(|r| (r.e, r.owner)).collect();
+
+    // --- GDP per region (last month's value added), summed per owning nation ---
+    let region_gdp: HashMap<Entity, f64> = {
+        let gdp = world.resource::<GdpLedger>();
+        regs.iter().map(|r| (r.e, gdp.region(r.e))).collect()
+    };
+    let mut nation_gdp: HashMap<Entity, f64> = HashMap::new();
+    for r in &regs {
+        *nation_gdp.entry(r.owner).or_default() += region_gdp.get(&r.e).copied().unwrap_or(0.0);
+    }
 
     // --- pops: population per region, soldier manpower per nation ---
     let mut pop_by_region: HashMap<Entity, u64> = HashMap::new();
@@ -308,6 +341,16 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         .iter()
         .map(|n| NationView { id: nation_id(&n.name), name: n.name.clone(), color: nation_color(&n.name) })
         .collect();
+    let economy: Vec<EconomyView> = nats
+        .iter()
+        .map(|n| EconomyView {
+            nation_id: nation_id(&n.name),
+            treasury: n.treasury,
+            gdp: nation_gdp.get(&n.e).copied().unwrap_or(0.0),
+            exports: n.exports,
+            imports: n.imports,
+        })
+        .collect();
     let finance: Vec<FinanceView> = nats
         .iter()
         .map(|n| FinanceView {
@@ -355,6 +398,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 climate: r.climate.clone(),
                 infrastructure: r.infrastructure,
                 resources: r.resources.clone(),
+                gdp: region_gdp.get(&r.e).copied().unwrap_or(0.0),
                 x,
                 y,
             }
@@ -378,6 +422,7 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         regions,
         prices,
         corporations,
+        economy,
         finance,
         crisis,
         politics,

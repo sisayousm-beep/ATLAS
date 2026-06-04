@@ -28,7 +28,7 @@ use diplomacy::{Diplomacy, DiplomacyLedger};
 use finance::FinanceLedger;
 use nation_ai::AiLedger;
 use politics::PoliticsLedger;
-use production::Market;
+use production::{GdpLedger, Market};
 use resources::GameClock;
 use war::{Warfront, WarLedger};
 
@@ -48,6 +48,7 @@ impl Simulation {
         let mut world = World::new();
         world.insert_resource(GameClock::default());
         world.insert_resource(Market::default());
+        world.insert_resource(GdpLedger::default());
         world.insert_resource(TradeLedger::default());
         world.insert_resource(FinanceLedger::default());
         world.insert_resource(PoliticsLedger::default());

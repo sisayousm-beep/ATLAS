@@ -25,7 +25,7 @@ use diplomacy::{Diplomacy, DiplomacyLedger};
 use finance::FinanceLedger;
 use nation_ai::AiLedger;
 use politics::PoliticsLedger;
-use production::Market;
+use production::{GdpLedger, Market};
 use resources::GameClock;
 use std::{thread, time::Duration};
 use war::{Warfront, WarLedger};
@@ -34,6 +34,7 @@ fn main() {
     let mut world = World::new();
     world.insert_resource(GameClock::default());
     world.insert_resource(Market::default());
+    world.insert_resource(GdpLedger::default());
     world.insert_resource(TradeLedger::default());
     world.insert_resource(FinanceLedger::default());
     world.insert_resource(PoliticsLedger::default());
@@ -71,7 +72,7 @@ mod tests {
     use crate::politics::{
         government_aligns, government_for, stability_after, Politics, PoliticsLedger,
     };
-    use crate::production::{base_price, Market};
+    use crate::production::{base_price, GdpLedger, Market};
     use crate::resources::{Deposits, GameClock, Good, ResourceStock};
     use crate::war::{
         attrition, military_power, strength_after, war_appetite, wants_peace, Military, WarLedger,
@@ -84,6 +85,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameClock::default());
         world.insert_resource(Market::default());
+        world.insert_resource(GdpLedger::default());
         world.insert_resource(TradeLedger::default());
         world.insert_resource(FinanceLedger::default());
         world.insert_resource(PoliticsLedger::default());
@@ -263,6 +265,25 @@ mod tests {
         );
     }
 
+    /// GDP (design §17): once a month has rolled, the economy reports a positive
+    /// world GDP and it concentrates in the producing regions — value added
+    /// accumulates across food, extraction and the factory chain.
+    #[test]
+    fn gdp_accumulates_across_the_economy() {
+        let mut world = new_world();
+        let mut schedule = crate::systems::build_schedule();
+        for _ in 0..60 {
+            schedule.run(&mut world);
+        }
+        let gdp = world.resource::<GdpLedger>();
+        let world_gdp: f64 = gdp.region_gdp.values().sum();
+        assert!(world_gdp > 0.0, "a producing economy should report positive GDP, got {world_gdp}");
+        assert!(
+            gdp.region_gdp.values().any(|&v| v > 0.0),
+            "GDP should land on the regions that actually produce"
+        );
+    }
+
     /// Phase 5: the stability rule leans the right way. A content, well-represented
     /// nation firms up; a miserable, unrepresented one slides — and stability never
     /// escapes its [0, 1] band.
@@ -356,6 +377,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameClock::default());
         world.insert_resource(Market::default());
+        world.insert_resource(GdpLedger::default());
         world.insert_resource(TradeLedger::default());
         world.insert_resource(FinanceLedger::default());
         world.insert_resource(PoliticsLedger::default());
@@ -472,6 +494,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameClock::default());
         world.insert_resource(Market::default());
+        world.insert_resource(GdpLedger::default());
         world.insert_resource(TradeLedger::default());
         world.insert_resource(FinanceLedger::default());
         world.insert_resource(PoliticsLedger::default());

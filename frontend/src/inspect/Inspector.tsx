@@ -13,6 +13,7 @@ import {
   governmentLabel,
   terrainLabel,
 } from "../i18n/labels";
+import { compact } from "../i18n/format";
 
 interface Props {
   world: WorldView;
@@ -68,6 +69,10 @@ export function Inspector({ world, selection, onSelectRegion, onSelectNation, on
             <dd>{region.population.toLocaleString()}</dd>
           </div>
           <div>
+            <dt>GDP</dt>
+            <dd>{compact(region.gdp)}</dd>
+          </div>
+          <div>
             <dt>지형</dt>
             <dd>{terrainLabel(region.terrain)}</dd>
           </div>
@@ -105,6 +110,7 @@ export function Inspector({ world, selection, onSelectRegion, onSelectNation, on
   if (!nation) return null;
   const regions = world.regions.filter((r) => r.nationId === nation.id);
   const population = regions.reduce((s, r) => s + r.population, 0);
+  const econ = world.economy.find((e) => e.nationId === nation.id);
   const fin = world.finance.find((f) => f.nationId === nation.id);
   const pol = world.politics.find((p) => p.nationId === nation.id);
   const mil = world.military.find((m) => m.nationId === nation.id);
@@ -128,6 +134,18 @@ export function Inspector({ world, selection, onSelectRegion, onSelectNation, on
           <dt>인구</dt>
           <dd>{population.toLocaleString()}</dd>
         </div>
+        {econ && (
+          <div>
+            <dt>GDP</dt>
+            <dd>{compact(econ.gdp)}</dd>
+          </div>
+        )}
+        {econ && (
+          <div>
+            <dt>국고</dt>
+            <dd>{compact(econ.treasury)}</dd>
+          </div>
+        )}
         {pol && (
           <div>
             <dt>정부</dt>
