@@ -35,15 +35,15 @@ export const sampleWorld: WorldView = {
   // Firms from world_gen.rs; capital/staff near the day-120 sim state. Car plants
   // dominate; the steelworks run at a loss and are shedding workers.
   corporations: [
-    { name: "Goldfield Foundry", nationId: "aurelia", industries: ["Iron"], capital: 21_567, employees: 17_000 },
-    { name: "Aurelia Steel", nationId: "aurelia", industries: ["Steel"], capital: -21_846, employees: 5_905 },
-    { name: "Vesper Plastics", nationId: "aurelia", industries: ["Plastic"], capital: 9_367, employees: 9_720 },
-    { name: "Aurelia Motors", nationId: "aurelia", industries: ["Car"], capital: 501_376, employees: 17_000 },
-    { name: "Sandreach Petrochem", nationId: "khoresan", industries: ["Plastic"], capital: 7_814, employees: 6_480 },
-    { name: "Oasis Forge", nationId: "khoresan", industries: ["Iron"], capital: 11_531, employees: 5_000 },
-    { name: "Nordheim Foundry", nationId: "nordheim", industries: ["Iron"], capital: 24_272, employees: 18_000 },
-    { name: "Nordheim Steel", nationId: "nordheim", industries: ["Steel"], capital: -22_605, employees: 6_561 },
-    { name: "Nordheim Motors", nationId: "nordheim", industries: ["Car"], capital: 479_942, employees: 17_000 },
+    { name: "Goldfield Foundry", nationId: "aurelia", industries: ["Iron"], capital: 21_567, employees: 17_000, revenue: 121_000, profit: 3_200 },
+    { name: "Aurelia Steel", nationId: "aurelia", industries: ["Steel"], capital: -21_846, employees: 5_905, revenue: 48_000, profit: -1_800 },
+    { name: "Vesper Plastics", nationId: "aurelia", industries: ["Plastic"], capital: 9_367, employees: 9_720, revenue: 70_000, profit: 1_100 },
+    { name: "Aurelia Motors", nationId: "aurelia", industries: ["Car"], capital: 501_376, employees: 17_000, revenue: 642_000, profit: 28_400 },
+    { name: "Sandreach Petrochem", nationId: "khoresan", industries: ["Plastic"], capital: 7_814, employees: 6_480, revenue: 46_000, profit: 900 },
+    { name: "Oasis Forge", nationId: "khoresan", industries: ["Iron"], capital: 11_531, employees: 5_000, revenue: 36_000, profit: 1_400 },
+    { name: "Nordheim Foundry", nationId: "nordheim", industries: ["Iron"], capital: 24_272, employees: 18_000, revenue: 128_000, profit: 3_500 },
+    { name: "Nordheim Steel", nationId: "nordheim", industries: ["Steel"], capital: -22_605, employees: 6_561, revenue: 52_000, profit: -1_900 },
+    { name: "Nordheim Motors", nationId: "nordheim", industries: ["Car"], capital: 479_942, employees: 17_000, revenue: 610_000, profit: 26_100 },
   ],
   // Per-nation economy (design §17). GDP is the sum of the regions' value added;
   // the two industrial powers (Aurelia, Nordheim) out-produce thin-industry

@@ -343,6 +343,7 @@ pub fn corporate_production(
             let margin = revenue - input_cost - wages;
             corp.capital += margin;
             corp.profit += margin;
+            corp.revenue += revenue;
             // GDP counts the value the factory adds: its output less the inputs
             // it consumed (design §17), so the chain isn't double-counted.
             gdp.add(corp.region, revenue - input_cost);
@@ -659,6 +660,7 @@ pub fn corporate_decisions(
             corp.employees = (corp.employees * 0.9).max(MIN_EMPLOYEES);
         }
         corp.profit = 0.0;
+        corp.revenue = 0.0;
     }
 }
 
@@ -1106,8 +1108,8 @@ pub fn report(
             .map(|(_, n, _, _, _, _)| n.name.as_str())
             .unwrap_or("?");
         println!(
-            "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  profit {:>10.0}",
-            corp.name, nation, corp.capital, corp.employees, corp.profit
+            "  firm {:<14} [{:<8}] capital {:>12.0}  staff {:>8.0}  revenue {:>11.0}  profit {:>10.0}",
+            corp.name, nation, corp.capital, corp.employees, corp.revenue, corp.profit
         );
     }
     println!("  trade volume: steel {:>8.0}  car {:>8.0}  total value {:>12.0}",

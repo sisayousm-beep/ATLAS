@@ -112,6 +112,7 @@ fn corp(
         capital,
         employees,
         profit: 0.0,
+        revenue: 0.0,
         industries: industries.to_vec(),
     });
 }

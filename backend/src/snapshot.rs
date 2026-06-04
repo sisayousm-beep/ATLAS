@@ -82,6 +82,10 @@ pub struct CorporationView {
     pub industries: Vec<String>,
     pub capital: f64,
     pub employees: f64,
+    /// Gross sales accumulated this month (resets monthly).
+    pub revenue: f64,
+    /// Margin accumulated this month (resets monthly).
+    pub profit: f64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -331,6 +335,8 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
         region: Entity,
         capital: f64,
         employees: f64,
+        revenue: f64,
+        profit: f64,
         industries: Vec<Good>,
     }
     let mut corps: Vec<CorpRaw> = Vec::new();
@@ -343,6 +349,8 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
                 region: c.region,
                 capital: c.capital,
                 employees: c.employees,
+                revenue: c.revenue,
+                profit: c.profit,
                 industries: c.industries.clone(),
             });
         }
@@ -526,6 +534,8 @@ pub fn world_snapshot(world: &mut World) -> WorldSnapshot {
             industries: c.industries.iter().map(|&g| good_label(g)).collect(),
             capital: c.capital,
             employees: c.employees,
+            revenue: c.revenue,
+            profit: c.profit,
         })
         .collect();
 

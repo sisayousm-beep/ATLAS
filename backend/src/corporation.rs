@@ -31,6 +31,8 @@ pub struct Corporation {
     pub employees: f64,
     /// Margin accumulated this month; read and reset by the monthly AI.
     pub profit: f64,
+    /// Gross sales accumulated this month; read and reset by the monthly AI.
+    pub revenue: f64,
     /// Goods the firm produces, listed low→high tier so a single region pass can
     /// chain them (e.g. `[Iron, Steel, Car]`).
     pub industries: Vec<Good>,

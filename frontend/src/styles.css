@@ -1003,3 +1003,126 @@ body {
   height: 30px;
   font-size: 11px;
 }
+
+/* Company dashboard (Phase 8). */
+.firm-table {
+  display: flex;
+  flex-direction: column;
+}
+.firm-head,
+.firm-row {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 0.9fr;
+  align-items: center;
+  gap: 8px;
+}
+.firm-head {
+  padding: 0 8px 8px;
+  color: #8b93b8;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #1c2340;
+}
+.firm-block {
+  border-bottom: 1px solid #131a32;
+}
+.firm-row {
+  width: 100%;
+  padding: 9px 8px;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.firm-row:hover,
+.firm-block.open .firm-row {
+  background: #0e1430;
+}
+.firm-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c5cbe6;
+}
+.firm-caret {
+  color: #6b73a0;
+  font-size: 11px;
+  width: 12px;
+}
+.firm-nation {
+  color: #8b93b8;
+  font-size: 11px;
+}
+.firm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e6e9f5;
+  font-size: 13px;
+}
+.firm-num.pos {
+  color: #5fb98a;
+}
+.firm-num.neg {
+  color: #e0686d;
+}
+.firm-detail {
+  padding: 10px 8px 14px 20px;
+  background: #0b1026;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.firm-products {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.firm-detail-label {
+  color: #8b93b8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.firm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.firm-chip {
+  padding: 2px 9px;
+  border-radius: 10px;
+  background: #18203f;
+  color: #c5cbe6;
+  font-size: 12px;
+}
+.firm-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.firm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.firm-stat-label {
+  color: #8b93b8;
+  font-size: 11px;
+}
+.firm-stat-value {
+  color: #e6e9f5;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.firm-stat-value.neg {
+  color: #e0686d;
+}
+.firm-deferred {
+  margin: 0;
+  color: #6b73a0;
+  font-size: 11px;
+  font-style: italic;
+}

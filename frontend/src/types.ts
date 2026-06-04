@@ -58,6 +58,10 @@ export interface CorporationView {
   /** Cash on hand; negative means the firm is bleeding. */
   capital: number;
   employees: number;
+  /** Gross sales accumulated this game month (resets monthly). */
+  revenue: number;
+  /** Margin accumulated this game month (resets monthly). */
+  profit: number;
 }
 
 export interface EconomyView {
